@@ -66,6 +66,8 @@ export default function Dashboard() {
   const defaultBrandId = 'vantaige-brand-001';
   const modelTurnCountRef = useRef(0);
   const isSetupCompleteRef = useRef(false);
+  const getCanSendRef = useRef<() => boolean>(() => false);
+  getCanSendRef.current = () => wsRef.current?.readyState === WebSocket.OPEN && isSetupCompleteRef.current === true;
   useEffect(() => {
     isSetupCompleteRef.current = isSetupComplete;
   }, [isSetupComplete]);
@@ -86,6 +88,7 @@ export default function Dashboard() {
       model: 'models/gemini-2.5-flash-native-audio-preview-12-2025',
       generationConfig: {
         responseModalities: ['AUDIO'],
+        mediaResolution: 'MEDIA_RESOLUTION_MEDIUM',
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {
@@ -93,6 +96,10 @@ export default function Dashboard() {
             },
           },
         },
+      },
+      contextWindowCompression: {
+        triggerTokens: '104857',
+        slidingWindow: { targetTokens: '52428' },
       },
       // Enable automatic turn-taking: model responds after user stops speaking (VAD).
       realtimeInputConfig: {
@@ -188,22 +195,18 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
   const micChunkCountRef = useRef(0);
   const micLogCountRef = useRef(0);
   const handleAudioInput = (base64Audio: string) => {
-    const wsOpen = wsRef.current?.readyState === WebSocket.OPEN;
-    const setupDone = isSetupCompleteRef.current;
-    const canSend = wsOpen && setupDone;
-    if (canSend) {
-      wsRef.current!.send(JSON.stringify({
-        realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: base64Audio }] }
-      }));
-      micChunkCountRef.current++;
-      if (micChunkCountRef.current === 1 || micChunkCountRef.current % 100 === 0) {
-        dbg('audio', `🎤 Mic → Gemini: ${micChunkCountRef.current} chunks sent`);
-      }
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({
+      realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: base64Audio }] }
+    }));
+    micChunkCountRef.current++;
+    if (micChunkCountRef.current === 1 || micChunkCountRef.current % 100 === 0) {
+      dbg('audio', `🎤 Mic → Gemini: ${micChunkCountRef.current} chunks sent`);
     }
     // #region agent log
     if (micLogCountRef.current < 8) {
       micLogCountRef.current += 1;
-      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:handleAudioInput',message:'mic chunk',data:{wsOpen,setupDone,canSend,sentSoFar:micChunkCountRef.current},timestamp:Date.now(),hypothesisId:'H1_H3',runId:'post-fix'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:handleAudioInput',message:'mic chunk sent',data:{sentSoFar:micChunkCountRef.current},timestamp:Date.now(),hypothesisId:'H1_H3'})}).catch(()=>{});
     }
     // #endregion
   };
@@ -220,7 +223,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
   };
 
-  const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback } = useAudioPipeline(handleAudioInput);
+  const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback, flushPlayback } = useAudioPipeline(handleAudioInput, getCanSendRef);
 
   const handleFrame = (base64Frame: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -257,7 +260,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     // 3. Initialise microphone and playback context (both need user gesture to avoid suspension)
     try {
       await startRecording();
-      preparePlayback();
+      await preparePlayback();
     } catch (e) {
       console.error("Microphone access denied or failed", e);
       setIsConnecting(false);
@@ -278,7 +281,8 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       ws.send(setupStr);
       setIsConnected(true);
       setIsConnecting(false);
-      setIsSetupComplete(false); // Reset on new connection
+      isSetupCompleteRef.current = false; // Reset ref so mic is not sent until setupComplete
+      setIsSetupComplete(false);
       sessionNotesRef.current = [`Started session with vibe: ${vibeProfile?.brand_identity || 'Default'}`];
       dbg('ws', '🟢 Connected to Gemini proxy — sending setup');
     };
@@ -341,6 +345,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         }
 
         if (turnComplete) {
+          flushPlayback();
           dbg('ws', '✅ Turn complete');
         }
       }
@@ -375,6 +380,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       }
       // #endregion
       if (data.setupComplete ?? (data as any).setup_complete) {
+        isSetupCompleteRef.current = true; // Sync ref immediately so worklet callback sees it before next render
         setIsSetupComplete(true);
         dbg('ws', '⚙️ Setup acknowledged by Gemini — sending greeting');
         fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:setupComplete',message:'setting isSetupComplete true, sending greeting',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});

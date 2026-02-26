@@ -1,10 +1,22 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type MutableRefObject } from 'react';
+
+const SPEECH_RMS_THRESHOLD = 300;
+const SILENCE_MS_BEFORE_TURN_COMPLETE = 700;
 
 // The Audio Pipeline Hook
 // INPUT:  16kHz, 16-bit mono PCM (microphone → Gemini)
 // OUTPUT: 24kHz, 16-bit mono PCM (Gemini audio → speakers)
-export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
+// getCanSendRef: ref to a function () => boolean; if provided, onAudioInput is only called when it returns true (avoids stale closure).
+// options.onUserStoppedSpeaking: called after SILENCE_MS_BEFORE_TURN_COMPLETE ms of silence following speech; use to send clientContent.turnComplete to Gemini.
+export function useAudioPipeline(
+    onAudioInput: (base64Audio: string) => void,
+    getCanSendRef?: MutableRefObject<() => boolean>,
+    options?: { onUserStoppedSpeaking?: () => void }
+) {
     const [isRecording, setIsRecording] = useState(false);
+    const onUserStoppedSpeakingRef = useRef(options?.onUserStoppedSpeaking);
+    onUserStoppedSpeakingRef.current = options?.onUserStoppedSpeaking;
+    const lastSpeechTimeRef = useRef<number>(0);
 
     // Separate contexts: recording must be 16kHz, playback must match Gemini output (24kHz)
     const recordingCtxRef = useRef<AudioContext | null>(null);
@@ -16,6 +28,11 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
     const isPlayingRef = useRef(false);
     const nextPlayTimeRef = useRef(0);
     const playLogCountRef = useRef(0);
+    const playbackGainRef = useRef<GainNode | null>(null);
+    // Accumulate small PCM chunks into larger buffers to reduce scheduling jitter and choppiness
+    const playbackAccumulatorRef = useRef<Int16Array[]>([]);
+    const playbackAccumulatorSamplesRef = useRef(0);
+    const TARGET_SAMPLES = 2880; // 120ms at 24kHz
 
     // ─── Playback ────────────────────────────────────────────────────────────
     const scheduleAudioPlayback = useCallback(() => {
@@ -26,7 +43,8 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
             return;
         }
         if (ctx.state === 'suspended') {
-            ctx.resume();
+            ctx.resume().then(() => scheduleAudioPlayback());
+            return;
         }
 
         isPlayingRef.current = true;
@@ -45,7 +63,8 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
 
         const source = ctx.createBufferSource();
         source.buffer = buffer;
-        source.connect(ctx.destination);
+        const dest = playbackGainRef.current ?? ctx.destination;
+        source.connect(dest);
 
         const playTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
         source.start(playTime);
@@ -60,23 +79,57 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
     }, []);
 
     // Call from a user gesture (e.g. Connect click) so playback can run without being suspended.
-    const preparePlayback = useCallback(() => {
+    // Use default context sample rate; buffers are created at 24kHz to match Gemini output.
+    const preparePlayback = useCallback(async (): Promise<void> => {
         if (!playbackCtxRef.current) {
-            playbackCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            playbackCtxRef.current = ctx;
+            const gain = ctx.createGain();
+            gain.gain.value = 1;
+            gain.connect(ctx.destination);
+            playbackGainRef.current = gain;
         }
         const ctx = playbackCtxRef.current;
         const stateBefore = ctx.state;
         if (ctx.state === 'suspended') {
-            ctx.resume().then(() => {
-                fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:preparePlayback',message:'resume() resolved',data:{stateBefore,stateAfter:ctx.state},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-            }).catch(()=>{});
+            await ctx.resume();
+            // #region agent log
+            fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:preparePlayback',message:'resume() resolved',data:{stateBefore,stateAfter:ctx.state},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
         }
+        // #region agent log
         fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:preparePlayback',message:'preparePlayback called',data:{state:ctx.state},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
     }, []);
+
+    const flushAccumulator = useCallback(() => {
+        const chunks = playbackAccumulatorRef.current;
+        const total = playbackAccumulatorSamplesRef.current;
+        if (total === 0) return;
+        playbackAccumulatorRef.current = [];
+        playbackAccumulatorSamplesRef.current = 0;
+        const merged = new Int16Array(total);
+        let offset = 0;
+        for (const c of chunks) {
+            merged.set(c, offset);
+            offset += c.length;
+        }
+        playbackQueueRef.current.push(merged);
+        const ctx = playbackCtxRef.current;
+        if (ctx && !isPlayingRef.current) {
+            nextPlayTimeRef.current = ctx.currentTime;
+            scheduleAudioPlayback();
+        }
+    }, [scheduleAudioPlayback]);
 
     const queuePlayback = useCallback((base64Pcm: string) => {
         if (!playbackCtxRef.current) {
-            playbackCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            playbackCtxRef.current = ctx;
+            const gain = ctx.createGain();
+            gain.gain.value = 1;
+            gain.connect(ctx.destination);
+            playbackGainRef.current = gain;
         }
 
         const ctx = playbackCtxRef.current;
@@ -85,25 +138,39 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
         }
 
         const binaryStr = window.atob(base64Pcm);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
+        const byteLen = binaryStr.length;
+        const ab = new ArrayBuffer(byteLen);
+        const bytes = new Uint8Array(ab);
+        for (let i = 0; i < byteLen; i++) {
             bytes[i] = binaryStr.charCodeAt(i);
         }
-        const pcm16 = new Int16Array(bytes.buffer);
-        playbackQueueRef.current.push(pcm16);
+        const numSamples = byteLen >> 1;
+        const pcm16 = new Int16Array(ab, 0, numSamples);
+        playbackAccumulatorRef.current.push(pcm16);
+        playbackAccumulatorSamplesRef.current += numSamples;
+
+        if (playbackAccumulatorSamplesRef.current >= TARGET_SAMPLES) {
+            flushAccumulator();
+        }
         const willSchedule = !isPlayingRef.current;
-        if (willSchedule) {
+        if (willSchedule && playbackQueueRef.current.length > 0) {
             nextPlayTimeRef.current = ctx.currentTime;
             scheduleAudioPlayback();
         }
         if (playbackQueueRef.current.length <= 2 || willSchedule) {
-            fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:queuePlayback',message:'chunk queued',data:{ctxState:ctx.state,queueLen:playbackQueueRef.current.length,willSchedule},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:queuePlayback',message:'chunk queued',data:{ctxState:ctx.state,queueLen:playbackQueueRef.current.length,accumulatorSamples:playbackAccumulatorSamplesRef.current,willSchedule},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
         }
-    }, [scheduleAudioPlayback]);
+    }, [scheduleAudioPlayback, flushAccumulator]);
+
+    const flushPlayback = useCallback(() => {
+        flushAccumulator();
+    }, [flushAccumulator]);
 
     const bargeIn = useCallback(() => {
         const cleared = playbackQueueRef.current.length;
         playbackQueueRef.current = [];
+        playbackAccumulatorRef.current = [];
+        playbackAccumulatorSamplesRef.current = 0;
         isPlayingRef.current = false;
         nextPlayTimeRef.current = playbackCtxRef.current?.currentTime || 0;
         fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:bargeIn',message:'bargeIn cleared queue',data:{cleared},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
@@ -135,10 +202,13 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
                 for (let i = 0; i < uint8.length; i++) {
                     binary += String.fromCharCode(uint8[i]);
                 }
-                onAudioInput(window.btoa(binary));
-                chunkCount++;
-                if (chunkCount % 50 === 0) {
-                    console.log(`[AudioPipeline] Sent ${chunkCount} mic chunks to Gemini`);
+                const canSend = !getCanSendRef || getCanSendRef.current?.() === true;
+                if (canSend) {
+                    onAudioInput(window.btoa(binary));
+                    chunkCount++;
+                    if (chunkCount % 50 === 0) {
+                        console.log(`[AudioPipeline] Sent ${chunkCount} mic chunks to Gemini`);
+                    }
                 }
             };
 
@@ -182,8 +252,9 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
             stopRecording();
             playbackCtxRef.current?.close().catch(console.error);
             playbackCtxRef.current = null;
+            playbackGainRef.current = null;
         };
     }, [stopRecording]);
 
-    return { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback };
+    return { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback, flushPlayback };
 }
