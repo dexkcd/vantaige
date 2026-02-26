@@ -16,6 +16,7 @@ Welcome, Agent. This document provides the essential context, technical standard
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **Database / Auth**: [Supabase](https://supabase.com/)
 - **AI Engine**: Google Gemini API (Multimodal Live / WebSockets)
+- **Required Tech**: You are required to use gemini live api: https://ai.google.dev/gemini-api/docs/live?example=mic-stream
 - **Styling**: Vanilla CSS (Tailwind avoided for maximum design control)
 - **Runtime**: Node.js / Browser (WebWorkers for audio processing)
 
@@ -31,6 +32,7 @@ Welcome, Agent. This document provides the essential context, technical standard
 - `supabase/`: Database schemas, migrations, and SQL setup scripts.
 
 ## 📜 Development Guidelines
+- **Always try to search for the latest documentation for the tools you are using.**
 - **Aesthetics First**: Every UI change must feel premium with non-marketers are primary users (smooth transitions, glassmorphism, curated HSL palettes).
 - **Communication**: Use `src/lib/supabase.ts` for all database interactions.
 - **Process Memory**: Always check for existing "vibe profiles" before starting a new session.

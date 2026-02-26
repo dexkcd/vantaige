@@ -1,43 +1,78 @@
-### Functionalities
-1. The "Live Vision" Engine (Multimodal Core)
-This is the heart of Category 1—real-time situational awareness.
+# 🦅 VantAIge: The Strategic Brand Engine
 
-Dual-Stream Input: Simultaneously captures your Webcam (physical products, sketches) and Screen-Share (websites, Figma designs, hex codes).
+**Status**: Alpha / Active Development
+**Stack**: Next.js, Supabase, Gemini Multimodal Live (WebSockets)
 
-Low-Latency Compositor: Merges both feeds into a 1FPS stream for Gemini 3 to "see" your entire workspace.
+VantAIge is an AI-powered "Marketing Director" that combines real-time situational awareness (vision/audio) with a deep, persistent memory of brand identity (Vibe Profiles).
 
-Proactive Visual Auditing: vantAIge doesn't wait for you to ask; it interrupts if it sees a branding mismatch (e.g., "I'm looking at your site, and that font choice contradicts the 'luxury' vibe we discussed").
+---
 
-2. The "Director" Voice & Fluidity
-This makes the interaction feel human and professional.
+## 🎯 Core Mission
+Transition AI from a "chat box" to a proactive partner that understands physical products, digital designs, and brand DNA simultaneously.
 
-True Barge-in Support: The AI stops instantly when you speak (VAD-driven buffer clearing).
+## 🛠 Feature Roadmap & Status
 
-Affective Intelligence: vantAIge detects your vocal tone (excitement, hesitation) and adapts its coaching style.
+### 1. 👁️ The "Live Vision" Engine
+- [x] Dual-Stream Input (Webcam + Screen-Share)
+- [x] Low-Latency Compositor (1FPS Gemini Stream)
+- [ ] **Next**: Proactive Visual Auditing (Interruption logic for brand mismatches)
 
-Zero-Latency Hand-off: When the AI says, "Look at this," the visual asset appears on the dashboard at the exact moment the words leave its digital mouth.
+### 2. 🎙️ High-Fidelity Interaction (The "Director")
+- [x] True Barge-in Support (VAD-driven buffer clearing)
+- [ ] Affective Intelligence (Tone detection & adaptation)
+- [x] Zero-Latency Hand-off (Syncing UI assets with voice)
 
-3. Persistent Memory (The "Strategic Brain")
-This separates your app from a basic wrapper.
+### 3. 🧠 Strategic Brain (Memory Layer)
+- [x] **Vibe Profile (JSONB)**: Persistent brand DNA storage
+- [x] Session Continuity: Recalling past decisions & palettes
+- [x] Real-time Updates: `upsert_vibe_profile` mid-call
+- [ ] **Next**: Cross-session trend analysis
 
-The Vibe Profile (JSONB): A persistent database record of the brand's DNA (Visual DNA, Tonal DNA, Audience).
+### 4. 🎨 Real-Time Execution
+- [ ] Nano Banana Asset Gen: Image generation during live calls
+- [ ] Launch Pack Sidebar: Pinned assets & copy for review
+- [x] Strategic Grounding: Google Search integration for trends
 
-Session-to-Session Continuity: vantAIge greets you by name and references past decisions (e.g., "Welcome back. Are we still sticking with that Earth-tone palette we liked yesterday?").
+### 5. 🔄 The "Refine" Loop (Agentic Workflow)
+- [ ] Kanban Bridge: Turning ideas into "Draft Plans"
+- [ ] The "Recall" Button: Restarting sessions with specific mission context
 
-Real-time Memory Updates: The AI calls upsert_vibe_profile mid-conversation to save "Learnings" without being asked.
+---
 
-4. Real-Time Creative Execution (The Output)
-The "Strategic" part of the Marketing Director role.
+## 🏗 Technical Architecture
 
-Nano Banana Asset Gen: vantAIge calls the image generation tool during the live call to create moodboards, logos, or social posts based on the conversation.
+### Data Flow
+1. **Input**: Client captures Audio (Mic) + Frames (Canvas)
+2. **Gateway**: `server.js` (Custom Express/Next server) proxies WebSockets to Gemini
+3. **Context**: Server Action fetches `vibe_profile` from Supabase and injects it into the `setup` message
+4. **Brain**: Gemini processes multimodal stream + tools (Search, Image Gen)
+5. **Output**: Real-time audio + tool-call responses to update UI/DB
 
-The "Launch Pack" Sidebar: A UI area where generated assets and copy are "pinned" for the user to review later.
+### Key Files
+- `server.js`: The WebSocket bridge & proxy
+- `src/app/page.tsx`: The main "Studio" UI & stream management
+- `src/lib/supabase.ts`: Database client & schema helpers
+- `public/pcm-processor.js`: Low-level audio handling
 
-Strategic Grounding: vantAIge uses Google Search to pull in real-time trends so its advice isn't outdated (e.g., "I see you're aiming for Gen Z—current TikTok trends suggest we should avoid this specific filter").
+## 📜 Agent Guidelines
+- **Always** prioritize the "Vibe Profile" when making design suggestions.
+- **Never** use generic placeholders; generate assets or use the brand's HSL tokens.
+- **WebSocket Safety**: Always clear buffers on disruption to prevent audio loops.
 
-5. The "Refine" Loop (The Agentic Workflow)
-The post-meeting dashboard interaction.
+---
 
-Kanban Bridge: Brainstormed ideas are automatically turned into "Draft Plans" on a Kanban board.
+## 🚀 How to Extend
 
-The "Recall" Button: A button on any plan that restarts a Live session with that specific plan's context loaded as the "Primary Mission."
+### Adding a New Tool
+1.  Define the tool logic in the Gemini session configuration within `page.tsx` or a dedicated server action.
+2.  Update the `setup` message in `server.js` if the tool requires specific permissions.
+3.  Add the tool's output handler in the client-side `onMessage` loop.
+
+### Modifying the Memory Layer
+1.  Check the Supabase schema in `supabase/` (usually managed via SQL scripts).
+2.  Update the `vibe_profile` JSONB structure in `src/lib/supabase.ts`.
+3.  Ensure `upsert_vibe_profile` is called when significant brand decisions are made.
+
+---
+*Reference: See [AGENTS.md](AGENTS.md) for detailed coding standards and workflow details.*
+*Last Updated: 2026-02-26*

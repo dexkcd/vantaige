@@ -3,9 +3,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
-import { Mic, MicOff, Video, VideoOff, Play, Square, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Play, Square, Loader2, Cpu, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchVantAIgeContext, upsertVibeProfileAction, summarizeSessionAction } from './actions/memory';
+import {
+  fetchVantAIgeContext,
+  upsertVibeProfileAction,
+  summarizeSessionAction,
+  generateBrandAssetAction,
+  createKanbanTaskAction,
+} from './actions/memory';
+import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
 
 // Types
 interface ToolCall {
@@ -14,21 +21,54 @@ interface ToolCall {
   id: string;
 }
 
+export interface KanbanTask {
+  id: string;
+  title: string;
+  platform: string;
+  priority: 'high' | 'medium' | 'low';
+  description: string;
+}
+
+const priorityColors: Record<string, string> = {
+  high: 'text-rose-400 border-rose-500/30 bg-rose-500/10',
+  medium: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
+  low: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+};
+
 export default function Dashboard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isSetupComplete, setIsSetupComplete] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   const [strategyPhase, setStrategyPhase] = useState<string>('Ideation');
   const [brandIdentity, setBrandIdentity] = useState<string>('Vibrant, futuristic AI brand');
-  const [moodboards, setMoodboards] = useState<{ url: string; prompt: string }[]>([]);
   const [isPulsing, setIsPulsing] = useState(false);
   const [sessionLogs, setSessionLogs] = useState<any[]>([]);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
+  // New state for Live Execution Bridge
+  const [isToolPending, setIsToolPending] = useState(false);
+  const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
+  const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
+
+  // Debug log
+  const [debugLogs, setDebugLogs] = useState<{ ts: string; type: string; msg: string }[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
+  const debugEndRef = useRef<HTMLDivElement | null>(null);
+  const dbg = (type: string, msg: string) => {
+    const ts = new Date().toISOString().slice(11, 23);
+    setDebugLogs(prev => [...prev.slice(-199), { ts, type, msg }]);
+  };
+
   // Track events for summarization
   const sessionNotesRef = useRef<string[]>([]);
   const defaultBrandId = 'vantaige-brand-001';
+  const modelTurnCountRef = useRef(0);
+  const isSetupCompleteRef = useRef(false);
+  useEffect(() => {
+    isSetupCompleteRef.current = isSetupComplete;
+  }, [isSetupComplete]);
 
   // Load existing context on mount
   useEffect(() => {
@@ -40,29 +80,44 @@ export default function Dashboard() {
     loadContext();
   }, []);
 
-  // Agent instructions injected at the beginning
+  // Agent instructions — camelCase per Live API WebSocket (ai.google.dev/api/live). realtimeInputConfig enables VAD/turn-taking like the official audio-orb sample.
   const setupMessage = {
     setup: {
-      model: 'models/gemini-2.5-flash-native-audio-latest', // Required by API for Live Multimodal
+      model: 'models/gemini-2.5-flash-native-audio-preview-12-2025',
       generationConfig: {
-        responseModalities: ["AUDIO"],
+        responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {
-              voiceName: 'Aoede'
-            }
-          }
-        }
+              voiceName: 'Aoede',
+            },
+          },
+        },
+      },
+      // Enable automatic turn-taking: model responds after user stops speaking (VAD).
+      realtimeInputConfig: {
+        automaticActivityDetection: { disabled: false },
+        activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
+        turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY',
       },
       systemInstruction: {
-        parts: [{
-          text: `You are vantAIge, a proactive Marketing Director. You audit the user's camera and screenshare visually.
-You have tools to finalize_marketing_strategy and generate_moodboard.
-Your goal is to converse naturally and assist the user in building out their brand identity and tasks.`
-        }]
+        parts: [
+          {
+            text: `You are vantAIge, a proactive Marketing Director. You see the user's camera and screenshare simultaneously.
+
+PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream at all times. If the user's screen-share (websites, Figma designs, decks) or webcam (physical product, packaging) shows any visual element that contradicts the saved Vibe Profile — such as wrong brand colors, inconsistent typography, or off-brand imagery — you MUST immediately interrupt and deliver a concise audio correction. Example: "I notice that blue on your Figma mockup doesn't match the electric indigo in your Vibe Profile — want me to flag the exact HEX to fix?"
+
+TOOLS:
+- finalize_marketing_strategy: Set the current strategy phase.
+- generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Use a rich, brand-aware prompt.
+- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description).
+- upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
+- end_session: End the session when the user is done.
+
+FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I've generated that logo based on the electric indigo we discussed — it's in your Launch Pack now. How does it look?"`,
+          },
+        ],
       },
-      input_audio_transcription: {},
-      output_audio_transcription: {},
       tools: [
         {
           functionDeclarations: [
@@ -70,50 +125,87 @@ Your goal is to converse naturally and assist the user in building out their bra
               name: 'finalize_marketing_strategy',
               description: 'Sets the current marketing strategy phase based on conversation.',
               parameters: {
-                type: 'OBJECT',
-                properties: { phase: { type: 'STRING', description: 'The strategy phase name' } },
-                required: ['phase']
-              }
+                type: 'object',
+                properties: { phase: { type: 'string', description: 'The strategy phase name' } },
+                required: ['phase'],
+              },
             },
             {
-              name: 'generate_moodboard',
-              description: 'Generates a moodboard asset image based on the prompt.',
+              name: 'generate_brand_asset',
+              description: 'Generates a brand visual asset (logo, banner, moodboard, etc.) using AI image generation. Call this whenever the user requests any visual creative output.',
               parameters: {
-                type: 'OBJECT',
-                properties: { image_prompt: { type: 'STRING', description: 'Prompt for image generator' } },
-                required: ['image_prompt']
-              }
+                type: 'object',
+                properties: { image_prompt: { type: 'string', description: 'A detailed, brand-aware prompt for the image generator' } },
+                required: ['image_prompt'],
+              },
+            },
+            {
+              name: 'create_kanban_task',
+              description: 'Converts a brainstormed idea into a persistent task on the dashboard. MUST be called when adding something to the roadmap or plan.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string', description: 'Short title for the task' },
+                  description: { type: 'string', description: 'Detailed description of the task and its strategic rationale' },
+                  platform: {
+                    type: 'string',
+                    enum: ['TikTok', 'Instagram', 'Web', 'Email'],
+                    description: 'The platform or channel for this task',
+                  },
+                  priority: {
+                    type: 'string',
+                    enum: ['low', 'medium', 'high'],
+                    description: 'Task priority level',
+                  },
+                },
+                required: ['title', 'description', 'platform', 'priority'],
+              },
             },
             {
               name: 'upsert_vibe_profile',
               description: 'Updates the persistent brand identity of the user.',
               parameters: {
-                type: 'OBJECT',
-                properties: { new_identity: { type: 'STRING', description: 'The new or updated brand identity description.' } },
-                required: ['new_identity']
-              }
+                type: 'object',
+                properties: { new_identity: { type: 'string', description: 'The new or updated brand identity description.' } },
+                required: ['new_identity'],
+              },
             },
             {
               name: 'end_session',
               description: 'Ends the current session when the conversation is naturally finished or the user requests to leave.',
               parameters: {
-                type: 'OBJECT',
+                type: 'object',
                 properties: {},
-                required: []
-              }
-            }
-          ]
-        }
-      ]
-    }
+                required: [],
+              },
+            },
+          ],
+        },
+      ],
+    },
   };
 
+  const micChunkCountRef = useRef(0);
+  const micLogCountRef = useRef(0);
   const handleAudioInput = (base64Audio: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
+    const wsOpen = wsRef.current?.readyState === WebSocket.OPEN;
+    const setupDone = isSetupCompleteRef.current;
+    const canSend = wsOpen && setupDone;
+    if (canSend) {
+      wsRef.current!.send(JSON.stringify({
         realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: base64Audio }] }
       }));
+      micChunkCountRef.current++;
+      if (micChunkCountRef.current === 1 || micChunkCountRef.current % 100 === 0) {
+        dbg('audio', `🎤 Mic → Gemini: ${micChunkCountRef.current} chunks sent`);
+      }
     }
+    // #region agent log
+    if (micLogCountRef.current < 8) {
+      micLogCountRef.current += 1;
+      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:handleAudioInput',message:'mic chunk',data:{wsOpen,setupDone,canSend,sentSoFar:micChunkCountRef.current},timestamp:Date.now(),hypothesisId:'H1_H3',runId:'post-fix'})}).catch(()=>{});
+    }
+    // #endregion
   };
 
   const handleTextInput = (text: string) => {
@@ -124,12 +216,11 @@ Your goal is to converse naturally and assist the user in building out their bra
           turnComplete: true
         }
       }));
-      // Also log it
       sessionNotesRef.current.push(`User said: ${text}`);
     }
   };
 
-  const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn } = useAudioPipeline(handleAudioInput);
+  const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback } = useAudioPipeline(handleAudioInput);
 
   const handleFrame = (base64Frame: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -142,6 +233,12 @@ Your goal is to converse naturally and assist the user in building out their bra
   const { isCapturing, startCompositor, stopCompositor, videoRefCamera, videoRefScreen, canvasRef } = useCompositor(handleFrame);
 
   const connectAPI = async () => {
+    modelTurnCountRef.current = 0;
+    micChunkCountRef.current = 0;
+    micLogCountRef.current = 0;
+    // #region agent log
+    fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:connectAPI',message:'connectAPI called',data:{},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     setIsConnecting(true);
 
     // 1. Fetch Context
@@ -150,91 +247,176 @@ Your goal is to converse naturally and assist the user in building out their bra
       setBrandIdentity(vibeProfile.brand_identity);
     }
 
-    // 2. Inject Memory Block
+    // 2. Inject Memory Block into System Instruction
     const pastSummaries = sessionLogs.map((l: any, i: number) => `Session ${i + 1}: ${l.summary}`).join(' | ');
-    const memoryBlock = `\n### MEMORY_START: You are continuing a relationship with this brand. Previous Vibe: ${vibeProfile?.brand_identity || 'None yet'}. Past Decisions: ${pastSummaries || 'First meeting.'}. MEMORY_END ###`;
+    const memoryBlock = `\n\n### MEMORY_START\nVibe Profile: ${vibeProfile?.brand_identity || 'None yet'}.\nPast Decisions: ${pastSummaries || 'First meeting.'}\nMEMORY_END ###`;
 
     const injectedSetup = JSON.parse(JSON.stringify(setupMessage));
     injectedSetup.setup.systemInstruction.parts[0].text += memoryBlock;
 
-    // 3. Initiate Microphone Access BEFORE connecting to Gemini (fixes race condition)
+    // 3. Initialise microphone and playback context (both need user gesture to avoid suspension)
     try {
       await startRecording();
+      preparePlayback();
     } catch (e) {
       console.error("Microphone access denied or failed", e);
       setIsConnecting(false);
       return;
     }
 
-    // The server is proxying us at wss://localhost:3000/api/proxy if we use the custom server
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/proxy`;
 
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      // #region agent log
+      const setupStr = JSON.stringify(injectedSetup);
+      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onopen',message:'sending setup',data:{setupLength:setupStr.length},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+      // #endregion
       console.log('Connected to Proxy with Memory!');
-      ws.send(JSON.stringify(injectedSetup));
+      ws.send(setupStr);
       setIsConnected(true);
       setIsConnecting(false);
+      setIsSetupComplete(false); // Reset on new connection
       sessionNotesRef.current = [`Started session with vibe: ${vibeProfile?.brand_identity || 'Default'}`];
+      dbg('ws', '🟢 Connected to Gemini proxy — sending setup');
     };
 
     ws.onmessage = async (event) => {
-      // Receive model responses
       let rawData = event.data;
       if (rawData instanceof Blob) {
         rawData = await rawData.text();
       }
 
       const data = JSON.parse(rawData);
-      if (data.serverContent) {
-        const { serverContent } = data;
 
-        // Barge-in interruption
-        if (serverContent.interrupted) {
+      // ── Gemini API errors ──────────────────────────────────────────────────
+      if (data.error) {
+        dbg('error', `🔴 Gemini error ${data.error.code}: ${data.error.message}`);
+        console.error('Gemini API error:', data.error);
+        return;
+      }
+      if (data.serverContent) {
+        const sc = data.serverContent;
+        const interrupted = sc.interrupted ?? (sc as any).interrupted;
+        const modelTurn = sc.modelTurn ?? (sc as any).model_turn;
+        const turnComplete = sc.turnComplete ?? (sc as any).turn_complete;
+        if (turnComplete) modelTurnCountRef.current += 1;
+        // #region agent log
+        if (turnComplete && modelTurnCountRef.current <= 3) {
+          fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:serverContent',message:'turnComplete',data:{turnIndex:modelTurnCountRef.current},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+        }
+        // #endregion
+
+        if (interrupted) {
           bargeIn();
+          dbg('audio', '⚡ Barge-in: cleared playback queue');
         }
 
-        // Audio playback & Text accumulation
-        if (serverContent.modelTurn) {
-          const parts = serverContent.modelTurn.parts;
-          for (let part of parts) {
-            if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
-              queuePlayback(part.inlineData.data);
+        if (modelTurn?.parts) {
+          const parts = modelTurn.parts;
+          let audioChunks = 0;
+          for (const part of parts) {
+            const inlineData = part.inlineData ?? (part as any).inline_data;
+            if (inlineData?.data) {
+              const mimeType = (inlineData.mimeType ?? (inlineData as any).mime_type ?? '').toLowerCase();
+              if (mimeType.startsWith('audio/pcm')) {
+                queuePlayback(inlineData.data);
+                audioChunks++;
+              }
             }
-            if (part.text) {
-              sessionNotesRef.current.push(`Model: ${part.text}`);
+            const text = part.text;
+            if (text) {
+              sessionNotesRef.current.push(`Model: ${text}`);
+              dbg('text', `📝 ${text.slice(0, 80)}`);
             }
-            if (part.functionCall) {
-              handleToolCall(part.functionCall);
+            const fnCall = part.functionCall ?? (part as any).function_call;
+            if (fnCall) {
+              dbg('tool', `🔧 tool_call: ${fnCall.name}`);
+              handleToolCall(fnCall);
             }
           }
+          if (audioChunks > 0) dbg('audio', `🔊 Audio: ${audioChunks} chunk(s) queued for playback`);
+        }
+
+        if (turnComplete) {
+          dbg('ws', '✅ Turn complete');
         }
       }
 
-      // 2. Handle User Transcriptions
-      if (data.serverContent?.user_transcription) {
-        sessionNotesRef.current.push(`User (Voice): ${data.serverContent.user_transcription.text}`);
+      if (data.serverContent?.inputTranscription) {
+        const t = data.serverContent.inputTranscription?.text;
+        if (t) dbg('transcript', `🎤 User: ${t}`);
+        sessionNotesRef.current.push(`User (Voice): ${t}`);
+      }
+
+      if (data.serverContent?.outputTranscription) {
+        const t = data.serverContent.outputTranscription?.text;
+        if (t) dbg('transcript', `🤖 Model: ${t}`);
+      }
+
+      // Also handle toolCall at top level (Gemini may send it separately)
+      if (data.toolCall) {
+        for (const fc of data.toolCall.functionCalls ?? []) {
+          dbg('tool', `🔧 tool_call (top-level): ${fc.name}`);
+          handleToolCall(fc);
+        }
+      }
+
+      // Log any unknown / unexpected keys
+      const knownKeys = ['serverContent', 'toolCall', 'setupComplete', 'error', 'usageMetadata'];
+      const unknownKeys = Object.keys(data).filter(k => !knownKeys.includes(k));
+      if (unknownKeys.length) dbg('raw', `❓ Unknown keys: ${unknownKeys.join(', ')} — ${JSON.stringify(data).slice(0, 120)}`);
+      // #region agent log
+      const hasSetupComplete = !!(data.setupComplete ?? (data as any).setup_complete);
+      if (hasSetupComplete || Object.keys(data).some(k => k.toLowerCase().includes('setup'))) {
+        fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:onmessage',message:'setupComplete check',data:{hasSetupComplete,keys:Object.keys(data)},timestamp:Date.now(),hypothesisId:'H1_H2'})}).catch(()=>{});
+      }
+      // #endregion
+      if (data.setupComplete ?? (data as any).setup_complete) {
+        setIsSetupComplete(true);
+        dbg('ws', '⚙️ Setup acknowledged by Gemini — sending greeting');
+        fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:setupComplete',message:'setting isSetupComplete true, sending greeting',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+        // Send a greeting text to immediately force a model response.
+        setTimeout(() => {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+              clientContent: {
+                turns: [{ role: 'user', parts: [{ text: 'Hello, introduce yourself briefly.' }] }],
+                turnComplete: true
+              }
+            }));
+            dbg('ws', '💬 Auto-greeting sent to kick off first model turn');
+          }
+        }, 500);
       }
     };
 
     ws.onerror = (e) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onerror',message:'WebSocket onerror',data:{type:typeof e},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       console.error('WebSocket Error', e);
+      dbg('error', `🔴 WebSocket error — check console`);
       setIsConnecting(false);
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onclose',message:'WebSocket onclose',data:{code:ev.code,reason:ev.reason,wasClean:ev.wasClean},timestamp:Date.now(),hypothesisId:'H2_H3_H4'})}).catch(()=>{});
+      // #endregion
+      dbg('ws', '🔌 Disconnected from Gemini proxy');
       setIsConnected(false);
+      setIsToolPending(false);
+      setIsSetupComplete(false);
       stopRecording();
       stopCompositor();
 
-      // Summarize the session via Server Action
       if (sessionNotesRef.current.length >= 1) {
         setIsSummarizing(true);
         summarizeSessionAction(defaultBrandId, sessionNotesRef.current.join('\n')).then(() => {
           setIsSummarizing(false);
-          // Refresh logs
           fetchVantAIgeContext(defaultBrandId).then(data => setSessionLogs(data.sessionLogs));
         }).catch(() => setIsSummarizing(false));
       }
@@ -249,47 +431,103 @@ Your goal is to converse naturally and assist the user in building out their bra
     }
   };
 
+  const sendToolResponse = (id: string, name: string, response: any) => {
+    dbg('tool', `↩️ tool_response: ${name} → ${JSON.stringify(response).slice(0, 60)}`);
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        toolResponse: { functionResponses: [{ id, name, response }] }
+      }));
+    }
+    setIsToolPending(false);
+  };
+
   const handleToolCall = async (toolCall: any) => {
     console.log('Tool Call Received:', toolCall);
     const { name, args, id } = toolCall;
 
+    // Activate the "thinking" pulse as soon as a tool call is received
+    setIsToolPending(true);
+
     if (name === 'finalize_marketing_strategy') {
       setStrategyPhase(args.phase);
       sessionNotesRef.current.push(`Moved strategy phase to: ${args.phase}`);
-      sendToolResponse(id, { success: true, phase: args.phase });
-    } else if (name === 'generate_moodboard') {
-      const mockUrl = `https://picsum.photos/seed/${Math.random()}/500/500`; // Placeholder for Nano Banana
-      setMoodboards(prev => [...prev, { url: mockUrl, prompt: args.image_prompt }]);
-      sessionNotesRef.current.push(`Generated moodboard for prompt: ${args.image_prompt}`);
-      sendToolResponse(id, { success: true, url: mockUrl });
+      sendToolResponse(id, name, { success: true, phase: args.phase });
+
+    } else if (name === 'generate_brand_asset') {
+      // Add placeholder in sidebar
+      const assetId = `asset-${Date.now()}`;
+      const newAsset: BrandAsset = { id: assetId, prompt: args.image_prompt, status: 'generating' };
+      setBrandAssets(prev => [newAsset, ...prev]);
+      sessionNotesRef.current.push(`Generating brand asset: ${args.image_prompt}`);
+
+      try {
+        const dataUrl = await generateBrandAssetAction(args.image_prompt);
+        setBrandAssets(prev =>
+          prev.map(a => a.id === assetId ? { ...a, status: 'done', dataUrl } : a)
+        );
+        sendToolResponse(id, name, { success: true, asset_id: assetId, message: 'Brand asset generated and displayed in Launch Pack.' });
+        sessionNotesRef.current.push(`Generated brand asset for: ${args.image_prompt}`);
+      } catch {
+        setBrandAssets(prev =>
+          prev.map(a => a.id === assetId ? { ...a, status: 'error' } : a)
+        );
+        sendToolResponse(id, name, { success: false, error: 'Image generation failed.' });
+      }
+
+    } else if (name === 'create_kanban_task') {
+      const { title, platform, priority, description } = args;
+      const tempId = `task-${Date.now()}`;
+      const optimisticTask: KanbanTask = { id: tempId, title, platform, priority: priority as any, description };
+      setKanbanTasks(prev => [optimisticTask, ...prev]);
+      sessionNotesRef.current.push(`Added to roadmap: ${title} (${platform})`);
+
+      try {
+        const saved = await createKanbanTaskAction(defaultBrandId, title, platform, priority, description);
+        setKanbanTasks(prev =>
+          prev.map(t => t.id === tempId ? { ...t, id: saved.id || tempId } : t)
+        );
+        sendToolResponse(id, name, { success: true, task_id: saved.id, message: `Task "${title}" added to your roadmap.` });
+      } catch {
+        sendToolResponse(id, name, { success: false, error: 'Failed to save task to roadmap.' });
+      }
+
     } else if (name === 'upsert_vibe_profile') {
       const newVibe = args.new_identity;
       setBrandIdentity(newVibe);
       sessionNotesRef.current.push(`Updated brand vibe profile to: ${newVibe}`);
-
-      // Trigger pulse animation
       setIsPulsing(true);
       setTimeout(() => setIsPulsing(false), 2000);
 
       try {
         await upsertVibeProfileAction(defaultBrandId, newVibe);
-        sendToolResponse(id, { success: true, saved: newVibe });
-      } catch (e) {
-        sendToolResponse(id, { success: false, error: 'Failed DB save' });
+        sendToolResponse(id, name, { success: true, saved: newVibe });
+      } catch {
+        sendToolResponse(id, name, { success: false, error: 'Failed DB save' });
       }
+
     } else if (name === 'end_session') {
-      sendToolResponse(id, { success: true, message: 'Session ended.' });
+      sendToolResponse(id, name, { success: true, message: 'Session ended.' });
       sessionNotesRef.current.push('AI voluntarily ended the session.');
-      setTimeout(() => disconnectAPI(), 500); // Give it a moment to send the tool response
+      setTimeout(() => disconnectAPI(), 500);
     }
   };
 
-  const sendToolResponse = (id: string, response: any) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        toolResponse: { functionResponses: [{ id, name: id, response }] }
-      }));
-    }
+  const handleAddToPlan = (asset: BrandAsset) => {
+    const tempId = `task-asset-${Date.now()}`;
+    setKanbanTasks(prev => [{
+      id: tempId,
+      title: `Brand Asset: ${asset.prompt.slice(0, 40)}…`,
+      platform: 'Multi-channel',
+      priority: 'medium',
+      description: `Generated asset from prompt: ${asset.prompt}`,
+    }, ...prev]);
+    createKanbanTaskAction(
+      defaultBrandId,
+      `Brand Asset: ${asset.prompt.slice(0, 40)}`,
+      'Multi-channel',
+      'medium',
+      `Generated asset from prompt: ${asset.prompt}`
+    ).catch(console.error);
   };
 
   return (
@@ -301,6 +539,38 @@ Your goal is to converse naturally and assist the user in building out their bra
         </div>
 
         <div className="flex gap-4 items-center">
+          {/* VantAIge is Thinking indicator */}
+          <AnimatePresence>
+            {isToolPending && (
+              <motion.div
+                key="thinking"
+                initial={{ opacity: 0, scale: 0.85, x: 10 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.85, x: 10 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm"
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.25, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+                >
+                  <Cpu size={15} className="text-indigo-400" />
+                </motion.div>
+                <span className="font-medium">vantAIge is Thinking</span>
+                <span className="flex gap-0.5">
+                  {[0, 1, 2].map(i => (
+                    <motion.span
+                      key={i}
+                      className="w-1 h-1 rounded-full bg-indigo-400"
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.2 }}
+                    />
+                  ))}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="flex bg-neutral-900 rounded-full p-1 border border-neutral-800">
             <button
               onClick={isCapturing ? stopCompositor : startCompositor}
@@ -349,9 +619,9 @@ Your goal is to converse naturally and assist the user in building out their bra
       </header>
 
       <main className="grid grid-cols-12 gap-6 h-[calc(100vh-140px)]">
-        {/* Pane 1: Live Feed */}
-        <section className="col-span-12 lg:col-span-5 h-full flex flex-col gap-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-4 flex-1 flex flex-col relative overflow-hidden group shadow-2xl">
+        {/* Pane 1: Live Feed + Vibe + History */}
+        <section className="col-span-12 lg:col-span-4 h-full flex flex-col gap-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-4 flex-shrink-0 flex flex-col relative overflow-hidden group shadow-2xl" style={{ height: '280px' }}>
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
               Live Feed
@@ -365,12 +635,11 @@ Your goal is to converse naturally and assist the user in building out their bra
                 </div>
               )}
             </div>
-            {/* Hidden videos for capturing */}
             <video ref={videoRefCamera} className="hidden" muted playsInline />
             <video ref={videoRefScreen} className="hidden" muted playsInline />
           </div>
 
-          <div className={`bg-neutral-900 border ${isPulsing ? 'border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.3)] scale-[1.02]' : 'border-neutral-800'} rounded-3xl p-5 h-40 transition-all duration-500`}>
+          <div className={`bg-neutral-900 border ${isPulsing ? 'border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.3)] scale-[1.02]' : 'border-neutral-800'} rounded-3xl p-5 flex-shrink-0 h-36 transition-all duration-500`}>
             <h3 className="text-sm text-neutral-400 mb-2 uppercase tracking-wider font-semibold flex items-center justify-between">
               Active Vibe Profile
               {isPulsing && <span className="text-pink-400 text-xs normal-case animate-pulse">Memory Updated</span>}
@@ -378,14 +647,14 @@ Your goal is to converse naturally and assist the user in building out their bra
             <textarea
               value={brandIdentity}
               onChange={(e) => setBrandIdentity(e.target.value)}
-              className="w-full h-16 bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-indigo-500 transition-colors resize-none text-sm"
+              className="w-full h-14 bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-indigo-500 transition-colors resize-none text-sm"
               readOnly
             />
-            <p className="text-xs text-neutral-500 mt-2">Saved to Persistent Memory Layer</p>
+            <p className="text-xs text-neutral-500 mt-1">Saved to Persistent Memory Layer</p>
           </div>
 
           {/* Session History */}
-          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 flex-1 mt-4 overflow-hidden flex flex-col backdrop-blur-sm">
+          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
             <h3 className="text-sm text-neutral-400 mb-4 uppercase tracking-wider font-semibold flex items-center justify-between">
               Session History
               {isSummarizing && <Loader2 size={14} className="animate-spin text-indigo-400" />}
@@ -417,12 +686,13 @@ Your goal is to converse naturally and assist the user in building out their bra
         </section>
 
         {/* Pane 2: Strategy Kanban */}
-        <section className="col-span-12 md:col-span-6 lg:col-span-4 h-full bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-6 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-6">Strategy Flow</h2>
+        <section className="col-span-12 md:col-span-6 lg:col-span-4 h-full bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-6 backdrop-blur-sm overflow-hidden flex flex-col">
+          <h2 className="text-xl font-semibold mb-2">Strategy Flow</h2>
+          <p className="text-xs text-neutral-500 mb-5">Phases &amp; roadmap tasks</p>
 
-          <div className="space-y-4 relative">
+          {/* Phase stepper */}
+          <div className="space-y-3 relative mb-6">
             <div className="absolute top-0 bottom-0 left-[23px] w-px bg-neutral-800 z-0"></div>
-
             {['Ideation', 'Drafting', 'Production', 'Review'].map((phase, idx) => {
               const isActive = strategyPhase === phase;
               return (
@@ -431,61 +701,117 @@ Your goal is to converse naturally and assist the user in building out their bra
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.1 }}
-                  className={`relative z-10 flex items-center gap-6 p-4 rounded-2xl transition-all duration-300
+                  className={`relative z-10 flex items-center gap-4 p-3 rounded-2xl transition-all duration-300
                     ${isActive ? 'bg-indigo-500/10 border border-indigo-500/30' : 'hover:bg-neutral-800/50'}`}
                 >
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center border-4 border-neutral-900 shrink-0 transition-colors duration-500
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 border-neutral-900 shrink-0 transition-colors duration-500
                     ${isActive ? 'bg-indigo-500 text-white' : 'bg-neutral-800 text-neutral-500'}`}>
                     {idx + 1}
                   </div>
                   <div>
-                    <h3 className={`font-semibold text-lg ${isActive ? 'text-indigo-300' : 'text-neutral-400'}`}>{phase}</h3>
-                    <p className="text-sm text-neutral-500 mt-1">
-                      {isActive ? 'vantAIge is actively reviewing this phase.' : 'Pending strategy update.'}
+                    <h3 className={`font-semibold ${isActive ? 'text-indigo-300' : 'text-neutral-400'}`}>{phase}</h3>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      {isActive ? 'vantAIge is reviewing.' : 'Pending.'}
                     </p>
                   </div>
                 </motion.div>
               );
             })}
           </div>
-        </section>
 
-        {/* Pane 3: Asset Gallery */}
-        <section className="col-span-12 md:col-span-6 lg:col-span-3 h-full flex flex-col gap-4">
-          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-6 flex-1 overflow-hidden flex flex-col">
-            <h2 className="text-xl font-semibold mb-6 flex justify-between items-center">
-              Asset Gallery
-              <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">{moodboards.length} items</span>
-            </h2>
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-              <AnimatePresence>
-                {moodboards.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center px-4 text-neutral-500 opacity-60">
-                    <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-neutral-600 mb-4 flex items-center justify-center">
-                      +
+          {/* Kanban Task Cards */}
+          <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar">
+            <h3 className="text-xs text-neutral-500 uppercase tracking-wider font-semibold mb-2">Roadmap Tasks</h3>
+            <AnimatePresence mode="popLayout">
+              {kanbanTasks.length === 0 ? (
+                <motion.div key="empty-tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-6">
+                  <p className="text-xs text-neutral-600 italic">vantAIge will add tasks to your roadmap here.</p>
+                </motion.div>
+              ) : (
+                kanbanTasks.map(task => (
+                  <motion.div
+                    key={task.id}
+                    layout
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm text-neutral-200 font-medium leading-tight">{task.title}</p>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${priorityColors[task.priority] || priorityColors.medium}`}>
+                        {task.priority}
+                      </span>
                     </div>
-                    <p>vantAIge will generate moodboards here based on your visual input.</p>
-                  </div>
-                ) : (
-                  moodboards.map((board, i) => (
-                    <motion.div
-                      key={Math.random()} // Normally a real ID
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="group relative rounded-2xl overflow-hidden border border-neutral-800 bg-black aspect-video cursor-pointer"
-                    >
-                      <img src={board.url} alt="Moodboard" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                        <p className="text-xs text-white max-w-full truncate">{board.prompt}</p>
-                      </div>
-                    </motion.div>
-                  ))
-                )}
-              </AnimatePresence>
-            </div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[10px] bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-md">{task.platform}</span>
+                    </div>
+                    {task.description && (
+                      <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{task.description}</p>
+                    )}
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
           </div>
         </section>
+
+        {/* Pane 3: Launch Pack Sidebar */}
+        <section className="col-span-12 md:col-span-6 lg:col-span-4 h-full flex flex-col">
+          <LaunchPackSidebar assets={brandAssets} onAddToPlan={handleAddToPlan} />
+        </section>
       </main>
+
+      {/* ── Debug Panel ─────────────────────────────────────────────────── */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+        {showDebug && (
+          <div className="w-96 h-72 bg-neutral-950/95 border border-neutral-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-sm text-xs font-mono">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800 shrink-0">
+              <span className="text-neutral-400 font-semibold tracking-wide">Debug Console</span>
+              <button
+                onClick={() => setDebugLogs([])}
+                className="text-neutral-600 hover:text-neutral-300 transition-colors text-[10px]"
+              >
+                clear
+              </button>
+            </div>
+            {/* Log entries */}
+            <div className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 custom-scrollbar">
+              {debugLogs.length === 0 && (
+                <p className="text-neutral-600 italic p-2">Waiting for events…</p>
+              )}
+              {debugLogs.map((log, i) => {
+                const color =
+                  log.type === 'error' ? 'text-rose-400' :
+                    log.type === 'audio' ? 'text-sky-400' :
+                      log.type === 'tool' ? 'text-amber-400' :
+                        log.type === 'transcript' ? 'text-emerald-400' :
+                          log.type === 'ws' ? 'text-indigo-400' :
+                            'text-neutral-400';
+                return (
+                  <div key={i} className="flex gap-2 leading-5">
+                    <span className="text-neutral-600 shrink-0">{log.ts}</span>
+                    <span className={`${color} break-all`}>{log.msg}</span>
+                  </div>
+                );
+              })}
+              <div ref={debugEndRef} />
+            </div>
+          </div>
+        )}
+        {/* Toggle button */}
+        <button
+          onClick={() => setShowDebug(v => !v)}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200
+            ${showDebug
+              ? 'bg-neutral-800 border-neutral-600 text-neutral-200'
+              : 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:text-neutral-200'}`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${debugLogs.length > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} />
+          Debug {debugLogs.length > 0 && `(${debugLogs.length})`}
+        </button>
+      </div>
     </div>
   );
 }

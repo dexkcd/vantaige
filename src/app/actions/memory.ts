@@ -7,6 +7,16 @@ import { GoogleGenAI } from '@google/genai';
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
+export interface MarketingPlan {
+    id?: string;
+    brand_id: string;
+    title: string;
+    platform?: string;
+    priority?: 'high' | 'medium' | 'low';
+    description?: string;
+    created_at?: string;
+}
+
 export interface SessionLog {
     id: string;
     brand_id: string;
@@ -89,4 +99,60 @@ export async function summarizeSessionAction(brandId: string, meetingNotes: stri
         console.error('Summarization Error:', error);
         return false;
     }
+}
+
+/**
+ * Generates a brand asset image using Gemini Imagen 3.
+ * Returns a base64-encoded PNG data URL.
+ */
+export async function generateBrandAssetAction(prompt: string): Promise<string> {
+    try {
+        const response = await ai.models.generateImages({
+            model: 'imagen-3.0-generate-002',
+            prompt,
+            config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/png',
+            },
+        });
+
+        const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+        if (!imageBytes) {
+            throw new Error('No image bytes returned from Imagen');
+        }
+
+        return `data:image/png;base64,${imageBytes}`;
+    } catch (error) {
+        console.error('Image generation error:', error);
+        throw new Error('Failed to generate brand asset');
+    }
+}
+
+/**
+ * Creates or upserts a marketing plan task into the kanban (marketing_plans table).
+ */
+export async function createKanbanTaskAction(
+    brandId: string,
+    title: string,
+    platform: string,
+    priority: 'high' | 'medium' | 'low',
+    description: string
+): Promise<MarketingPlan> {
+    // Ensure the brand profile exists first (prevents FK violation)
+    await supabase
+        .from('vibe_profiles')
+        .upsert({ id: brandId, brand_identity: 'Default' }, { onConflict: 'id' });
+
+    const { data, error } = await supabase
+        .from('marketing_plans')
+        .insert({ brand_id: brandId, title, platform, priority, description })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Failed to create kanban task:', error);
+        throw new Error('Failed to create kanban task');
+    }
+
+    return data as MarketingPlan;
 }
