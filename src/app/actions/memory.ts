@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 
 // Initialize the standard Gemini client for the summarizer
 const apiKey = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
 export interface SessionLog {
     id: string;
@@ -53,17 +53,25 @@ export async function upsertVibeProfileAction(brandId: string, brandIdentity: st
 export async function summarizeSessionAction(brandId: string, meetingNotes: string) {
     try {
         // 1. Summarize via Gemini REST/GenAI SDK
+        console.log(`Summarizing session with ${meetingNotes.length} chars of notes...`);
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Summarize the following meeting interactions and key decisions into a concise paragraph.
+            model: 'gemini-flash-latest',
+            contents: [{
+                role: 'user', parts: [{
+                    text: `Summarize the following meeting interactions and key decisions into a concise paragraph.
         
         Meeting Interactions:
-        ${meetingNotes}`,
+        ${meetingNotes}`
+                }]
+            }],
         });
 
-        const summary = response.text || 'Session was active but yielded no specific decisions.';
+        const summary = response.candidates?.[0]?.content?.parts?.[0]?.text || 'Session was active but yielded no specific decisions.';
+        console.log(`Generated Summary: ${summary}`);
 
-        // 2. Save to Supabase
+        // 2. Save to Supabase (Ensure brand exists first)
+        await supabase.from('vibe_profiles').upsert({ id: brandId, brand_identity: 'Default' }, { onConflict: 'id' });
+
         const { error } = await supabase
             .from('session_logs')
             .insert({

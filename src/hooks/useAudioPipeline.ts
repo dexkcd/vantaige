@@ -7,7 +7,7 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
     const [isRecording, setIsRecording] = useState(false);
     const audioContextRef = useRef<AudioContext | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const processorRef = useRef<ScriptProcessorNode | null>(null); // Note: AudioWorklet is better, but ScriptProcessor is simpler for inline demo
+    const audioWorkletNodeRef = useRef<AudioWorkletNode | null>(null);
     const playbackQueueRef = useRef<Int16Array[]>([]);
     const isPlayingRef = useRef(false);
     const nextPlayTimeRef = useRef(0);
@@ -75,8 +75,6 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
 
     const bargeIn = useCallback(() => {
         // Clear the queue entirely immediately.
-        // In a more complex AudioWorklet setup we would flush the audio context perfectly,
-        // but here we just drop upcoming chunks to simulate the barge in immediately.
         playbackQueueRef.current = [];
         nextPlayTimeRef.current = audioContextRef.current?.currentTime || 0;
     }, []);
@@ -92,34 +90,27 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
 
-            const source = ctx.createMediaStreamSource(stream);
-            // Deprecated but highly standard for 16-bit PCM conversion without an external worklet file.
-            const processor = ctx.createScriptProcessor(4096, 1, 1);
-            processorRef.current = processor;
+            // Load the worklet from the public folder
+            await ctx.audioWorklet.addModule('/pcm-processor.js');
 
-            processor.onaudioprocess = (e) => {
-                const inputData = e.inputBuffer.getChannelData(0); // Float32
-                const pcm16 = new Int16Array(inputData.length);
-                for (let i = 0; i < inputData.length; i++) {
-                    // Convert back to 16-bit PCM
-                    let s = Math.max(-1, Math.min(1, inputData[i]));
-                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-                // Base64 encode the Int16Array
-                const uint8 = new Uint8Array(pcm16.buffer);
+            const source = ctx.createMediaStreamSource(stream);
+            const workletNode = new AudioWorkletNode(ctx, 'pcm-processor');
+            audioWorkletNodeRef.current = workletNode;
+
+            workletNode.port.onmessage = (event) => {
+                const buffer = event.data;
+                const uint8 = new Uint8Array(buffer);
                 let binary = '';
-                const chunkSize = 8192;
-                // avoid maximum call stack size exceeded on large chunks
-                for (let i = 0; i < uint8.length; i += chunkSize) {
-                    const chunk = uint8.subarray(i, i + chunkSize);
-                    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+                // Chunk the base64 building to be hyper-safe off the worklet thread size
+                for (let i = 0; i < uint8.length; i++) {
+                    binary += String.fromCharCode(uint8[i]);
                 }
                 const base64PCM = window.btoa(binary);
                 onAudioInput(base64PCM);
             };
 
-            source.connect(processor);
-            processor.connect(ctx.destination);
+            source.connect(workletNode);
+            workletNode.connect(ctx.destination);
 
             setIsRecording(true);
         } catch (err) {
@@ -129,16 +120,16 @@ export function useAudioPipeline(onAudioInput: (base64Audio: string) => void) {
 
     const stopRecording = useCallback(() => {
         setIsRecording(false);
-        if (processorRef.current) {
-            processorRef.current.disconnect();
-            processorRef.current = null;
+        if (audioWorkletNodeRef.current) {
+            audioWorkletNodeRef.current.disconnect();
+            audioWorkletNodeRef.current = null;
         }
         if (streamRef.current) {
             streamRef.current.getTracks().forEach((track) => track.stop());
             streamRef.current = null;
         }
         if (audioContextRef.current) {
-            audioContextRef.current.close();
+            audioContextRef.current.close().catch(console.error);
             audioContextRef.current = null;
         }
     }, []);

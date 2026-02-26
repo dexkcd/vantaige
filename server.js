@@ -50,9 +50,16 @@ app.prepare().then(() => {
         const mmlUrl = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${apiKey}`;
 
         const geminiWs = new WebSocket(mmlUrl);
+        const messageQueue = [];
 
         geminiWs.on('open', () => {
-            console.log('Connected to Gemini Live API');
+            console.log('PROXY [V2]: Connected to Gemini Live API');
+            // Drain the buffer
+            while (messageQueue.length > 0) {
+                const queuedData = messageQueue.shift();
+                console.log(`PROXY: Sending buffered message to Gemini (${queuedData.length} bytes)`);
+                geminiWs.send(queuedData);
+            }
         });
 
         geminiWs.on('message', (data) => {
@@ -63,19 +70,25 @@ app.prepare().then(() => {
 
         clientWs.on('message', (data) => {
             if (geminiWs.readyState === WebSocket.OPEN) {
+                console.log(`PROXY: Forwarding message from Client (${data.length} bytes)`);
                 geminiWs.send(data);
+            } else if (geminiWs.readyState === WebSocket.CONNECTING) {
+                console.log(`PROXY: Buffering message from Client (${data.length} bytes) - Gemini connecting...`);
+                messageQueue.push(data);
+            } else {
+                console.warn('PROXY: Gemini socket not open/connecting, dropping message');
             }
         });
 
-        geminiWs.on('close', () => {
-            console.log('Gemini Live API connection closed');
+        geminiWs.on('close', (code, reason) => {
+            console.log(`PROXY: Gemini Live API connection closed. Code: ${code}, Reason: ${reason.toString()}`);
             if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.close();
             }
         });
 
-        clientWs.on('close', () => {
-            console.log('Client connection closed');
+        clientWs.on('close', (code, reason) => {
+            console.log(`PROXY [V2]: Client connection closed. Code: ${code}, Reason: ${reason.toString()}`);
             if (geminiWs.readyState === WebSocket.OPEN) {
                 geminiWs.close();
             }

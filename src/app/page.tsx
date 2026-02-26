@@ -23,15 +23,37 @@ export default function Dashboard() {
   const [brandIdentity, setBrandIdentity] = useState<string>('Vibrant, futuristic AI brand');
   const [moodboards, setMoodboards] = useState<{ url: string; prompt: string }[]>([]);
   const [isPulsing, setIsPulsing] = useState(false);
+  const [sessionLogs, setSessionLogs] = useState<any[]>([]);
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   // Track events for summarization
   const sessionNotesRef = useRef<string[]>([]);
   const defaultBrandId = 'vantaige-brand-001';
 
+  // Load existing context on mount
+  useEffect(() => {
+    const loadContext = async () => {
+      const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(defaultBrandId);
+      if (vibeProfile?.brand_identity) setBrandIdentity(vibeProfile.brand_identity);
+      setSessionLogs(sessionLogs);
+    };
+    loadContext();
+  }, []);
+
   // Agent instructions injected at the beginning
   const setupMessage = {
     setup: {
-      model: 'models/gemini-2.0-flash-exp', // Or what proxy requires
+      model: 'models/gemini-2.5-flash-native-audio-latest', // Required by API for Live Multimodal
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: 'Aoede'
+            }
+          }
+        }
+      },
       systemInstruction: {
         parts: [{
           text: `You are vantAIge, a proactive Marketing Director. You audit the user's camera and screenshare visually.
@@ -39,6 +61,8 @@ You have tools to finalize_marketing_strategy and generate_moodboard.
 Your goal is to converse naturally and assist the user in building out their brand identity and tasks.`
         }]
       },
+      input_audio_transcription: {},
+      output_audio_transcription: {},
       tools: [
         {
           functionDeclarations: [
@@ -68,6 +92,15 @@ Your goal is to converse naturally and assist the user in building out their bra
                 properties: { new_identity: { type: 'STRING', description: 'The new or updated brand identity description.' } },
                 required: ['new_identity']
               }
+            },
+            {
+              name: 'end_session',
+              description: 'Ends the current session when the conversation is naturally finished or the user requests to leave.',
+              parameters: {
+                type: 'OBJECT',
+                properties: {},
+                required: []
+              }
             }
           ]
         }
@@ -80,6 +113,19 @@ Your goal is to converse naturally and assist the user in building out their bra
       wsRef.current.send(JSON.stringify({
         realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: base64Audio }] }
       }));
+    }
+  };
+
+  const handleTextInput = (text: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        clientContent: {
+          turns: [{ role: 'user', parts: [{ text }] }],
+          turnComplete: true
+        }
+      }));
+      // Also log it
+      sessionNotesRef.current.push(`User said: ${text}`);
     }
   };
 
@@ -111,6 +157,15 @@ Your goal is to converse naturally and assist the user in building out their bra
     const injectedSetup = JSON.parse(JSON.stringify(setupMessage));
     injectedSetup.setup.systemInstruction.parts[0].text += memoryBlock;
 
+    // 3. Initiate Microphone Access BEFORE connecting to Gemini (fixes race condition)
+    try {
+      await startRecording();
+    } catch (e) {
+      console.error("Microphone access denied or failed", e);
+      setIsConnecting(false);
+      return;
+    }
+
     // The server is proxying us at wss://localhost:3000/api/proxy if we use the custom server
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/proxy`;
@@ -122,13 +177,17 @@ Your goal is to converse naturally and assist the user in building out their bra
       ws.send(JSON.stringify(injectedSetup));
       setIsConnected(true);
       setIsConnecting(false);
-      startRecording();
       sessionNotesRef.current = [`Started session with vibe: ${vibeProfile?.brand_identity || 'Default'}`];
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       // Receive model responses
-      const data = JSON.parse(event.data);
+      let rawData = event.data;
+      if (rawData instanceof Blob) {
+        rawData = await rawData.text();
+      }
+
+      const data = JSON.parse(rawData);
       if (data.serverContent) {
         const { serverContent } = data;
 
@@ -137,18 +196,26 @@ Your goal is to converse naturally and assist the user in building out their bra
           bargeIn();
         }
 
-        // Audio playback
+        // Audio playback & Text accumulation
         if (serverContent.modelTurn) {
           const parts = serverContent.modelTurn.parts;
           for (let part of parts) {
             if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
               queuePlayback(part.inlineData.data);
             }
+            if (part.text) {
+              sessionNotesRef.current.push(`Model: ${part.text}`);
+            }
             if (part.functionCall) {
               handleToolCall(part.functionCall);
             }
           }
         }
+      }
+
+      // 2. Handle User Transcriptions
+      if (data.serverContent?.user_transcription) {
+        sessionNotesRef.current.push(`User (Voice): ${data.serverContent.user_transcription.text}`);
       }
     };
 
@@ -163,8 +230,13 @@ Your goal is to converse naturally and assist the user in building out their bra
       stopCompositor();
 
       // Summarize the session via Server Action
-      if (sessionNotesRef.current.length > 1) {
-        summarizeSessionAction(defaultBrandId, sessionNotesRef.current.join('\n'));
+      if (sessionNotesRef.current.length >= 1) {
+        setIsSummarizing(true);
+        summarizeSessionAction(defaultBrandId, sessionNotesRef.current.join('\n')).then(() => {
+          setIsSummarizing(false);
+          // Refresh logs
+          fetchVantAIgeContext(defaultBrandId).then(data => setSessionLogs(data.sessionLogs));
+        }).catch(() => setIsSummarizing(false));
       }
     };
 
@@ -205,6 +277,10 @@ Your goal is to converse naturally and assist the user in building out their bra
       } catch (e) {
         sendToolResponse(id, { success: false, error: 'Failed DB save' });
       }
+    } else if (name === 'end_session') {
+      sendToolResponse(id, { success: true, message: 'Session ended.' });
+      sessionNotesRef.current.push('AI voluntarily ended the session.');
+      setTimeout(() => disconnectAPI(), 500); // Give it a moment to send the tool response
     }
   };
 
@@ -240,6 +316,21 @@ Your goal is to converse naturally and assist the user in building out their bra
             >
               {isRecording ? <Mic size={20} /> : <MicOff size={20} />}
             </button>
+          </div>
+
+          <div className="flex gap-2 mr-4">
+            <input
+              type="text"
+              id="test-text-input"
+              placeholder="Type message..."
+              className="px-3 py-1 bg-neutral-800 rounded text-sm text-white border border-neutral-700 focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleTextInput(e.currentTarget.value);
+                  e.currentTarget.value = '';
+                }
+              }}
+            />
           </div>
 
           <button
@@ -291,6 +382,37 @@ Your goal is to converse naturally and assist the user in building out their bra
               readOnly
             />
             <p className="text-xs text-neutral-500 mt-2">Saved to Persistent Memory Layer</p>
+          </div>
+
+          {/* Session History */}
+          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 flex-1 mt-4 overflow-hidden flex flex-col backdrop-blur-sm">
+            <h3 className="text-sm text-neutral-400 mb-4 uppercase tracking-wider font-semibold flex items-center justify-between">
+              Session History
+              {isSummarizing && <Loader2 size={14} className="animate-spin text-indigo-400" />}
+            </h3>
+            <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+              {isSummarizing && (
+                <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/20 animate-pulse text-xs text-indigo-300">
+                  Summarizing latest session...
+                </div>
+              )}
+              {sessionLogs.map((log, i) => (
+                <motion.div
+                  key={log.id || i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3 rounded-xl bg-neutral-800/30 border border-neutral-800 hover:bg-neutral-800/50 transition-colors"
+                >
+                  <p className="text-xs text-neutral-300 leading-relaxed line-clamp-3">{log.summary}</p>
+                  <span className="text-[10px] text-neutral-600 mt-2 block">
+                    {new Date(log.created_at).toLocaleDateString()}
+                  </span>
+                </motion.div>
+              ))}
+              {sessionLogs.length === 0 && !isSummarizing && (
+                <p className="text-xs text-neutral-600 italic text-center py-4">No previous sessions found.</p>
+              )}
+            </div>
           </div>
         </section>
 
