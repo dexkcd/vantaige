@@ -29,3 +29,369 @@
 {"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":35},"timestamp":1772138472986,"hypothesisId":"C"}
 {"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":37},"timestamp":1772138473096,"hypothesisId":"C"}
 {"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772138485064,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772138701139,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772138701826,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5103},"timestamp":1772138701843,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772138701989,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772138701999,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772138702009,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772138702015,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772138702024,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772138702036,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772138702045,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772138701989,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772138702057,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772138702015,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772138705375,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772138705376,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772138705377,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772138705392,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772138705407,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772138705407,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772138705407,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772138705424,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772138705424,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772138705410,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":30},"timestamp":1772138706329,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":33},"timestamp":1772138706445,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":35},"timestamp":1772138706566,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":37},"timestamp":1772138706686,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":39},"timestamp":1772138706807,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":41},"timestamp":1772138706926,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":42},"timestamp":1772138707045,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772138725164,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"server.js:geminiWs.close","message":"Gemini closed upstream","data":{"code":1000,"reason":""},"hypothesisId":"H3","timestamp":1772138735067}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1005,"reason":"","wasClean":true},"timestamp":1772138735048,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1006,"reason":"","wasClean":false},"timestamp":1772139028221,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772139515521,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772139516269,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772139549600,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772139550326,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onerror","message":"WebSocket onerror","data":{"type":"object"},"timestamp":1772139616760,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1006,"reason":"","wasClean":false},"timestamp":1772139616766,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772139732998,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772139733859,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5180},"timestamp":1772139734182,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772139734596,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772139734636,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772139734639,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772139734647,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772139734657,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772139734596,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772139734597,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772139734641,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772139734640,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772139734642,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772139738000,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772139738001,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772139738022,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772139738024,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772139738025,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772139738026,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772139738027,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772139738029,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772139738057,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772139738084,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":32},"timestamp":1772139738979,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":36},"timestamp":1772139739123,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":41},"timestamp":1772139739259,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":43},"timestamp":1772139739458,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":50},"timestamp":1772139739590,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":53},"timestamp":1772139739723,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":56},"timestamp":1772139739852,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772139755466,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1005,"reason":"","wasClean":true},"timestamp":1772139795457,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772139912214,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772139912941,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5144},"timestamp":1772139913264,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772139913491,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772139913521,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772139913543,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772139913547,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772139913491,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772139913556,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772139913543,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772139913548,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772139913549,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772139913550,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772139916644,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772139916645,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772139916647,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772139916692,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772139916722,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772139916723,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772139916724,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772139916725,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772139916726,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772139916727,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":32},"timestamp":1772139917615,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":34},"timestamp":1772139917737,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":37},"timestamp":1772139917871,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":36},"timestamp":1772139918002,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":40},"timestamp":1772139918137,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":41},"timestamp":1772139918256,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":43},"timestamp":1772139918398,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1000,"reason":"","wasClean":false},"timestamp":1772139922044,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140102641,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140103614,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5244},"timestamp":1772140103954,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772140104553,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772140104609,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772140104613,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772140104620,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772140104554,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772140104555,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772140104624,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772140104615,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772140104617,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772140104616,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772140108019,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140108020,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140108024,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140108025,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140108088,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140108090,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140108091,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140108093,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140108131,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140108131,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":32},"timestamp":1772140109014,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":36},"timestamp":1772140109197,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":41},"timestamp":1772140109372,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":47},"timestamp":1772140109575,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":52},"timestamp":1772140109789,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":58},"timestamp":1772140110015,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":62},"timestamp":1772140110275,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772140118592,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1005,"reason":"","wasClean":true},"timestamp":1772140183144,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140539665,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140540358,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5080},"timestamp":1772140540680,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772140540966,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772140540995,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772140541023,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772140540966,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772140541031,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772140541033,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772140541039,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772140541023,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772140541024,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772140541035,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772140543142,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140543142,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140543144,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140543165,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140543166,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140543167,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140543168,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140543192,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140543215,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140543216,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":28},"timestamp":1772140544109,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":30},"timestamp":1772140544278,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":34},"timestamp":1772140544416,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":37},"timestamp":1772140544575,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":40},"timestamp":1772140544703,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":41},"timestamp":1772140544818,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":44},"timestamp":1772140544950,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772140555808,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1012,"reason":"","wasClean":true},"timestamp":1772140631797,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140647700,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140648348,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140680137,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140680779,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onerror","message":"WebSocket onerror","data":{"type":"object"},"timestamp":1772140703372,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1006,"reason":"","wasClean":false},"timestamp":1772140703376,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140714970,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140715626,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5194},"timestamp":1772140715936,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772140716220,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772140716247,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772140716273,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772140716277,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772140716221,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772140716284,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772140716273,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772140716274,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772140716276,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772140716281,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772140718979,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140718979,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140719004,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140719414,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140719439,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140719440,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140719461,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140719462,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140719462,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140719462,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":14},"timestamp":1772140719936,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":14},"timestamp":1772140720060,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":13},"timestamp":1772140720176,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":12},"timestamp":1772140720321,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":14},"timestamp":1772140720435,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":17},"timestamp":1772140720618,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":22},"timestamp":1772140720742,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772140730884,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1012,"reason":"","wasClean":true},"timestamp":1772140838860,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140849310,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140850000,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140865434,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140866075,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140880313,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140881111,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onerror","message":"WebSocket onerror","data":{"type":"object"},"timestamp":1772140904854,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1006,"reason":"","wasClean":false},"timestamp":1772140904858,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772140916129,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772140916744,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":4987},"timestamp":1772140917069,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772140917368,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772140917404,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772140917406,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772140917413,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772140917420,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772140917368,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772140917370,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772140917407,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772140917411,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772140917408,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772140919990,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140919991,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140919992,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":0,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140920022,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140920023,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140920024,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":1,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140920046,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":0,"willSchedule":false},"timestamp":1772140920046,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":960,"willSchedule":false},"timestamp":1772140920047,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:queuePlayback","message":"chunk queued","data":{"ctxState":"running","queueLen":2,"accumulatorSamples":1920,"willSchedule":false},"timestamp":1772140920048,"hypothesisId":"B"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":31},"timestamp":1772140920969,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":34},"timestamp":1772140921098,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":36},"timestamp":1772140921227,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":37},"timestamp":1772140921339,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":38},"timestamp":1772140921460,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":39},"timestamp":1772140921586,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":40},"timestamp":1772140921704,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772140934187,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1012,"reason":"","wasClean":true},"timestamp":1772141228279,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772141245383,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772141246139,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":4987},"timestamp":1772141246452,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772141246721,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772141246763,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772141246795,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772141246722,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772141246804,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772141246806,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772141246796,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772141246797,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772141246797,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772141246808,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772141248769,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":32},"timestamp":1772141249720,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":35},"timestamp":1772141249854,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":36},"timestamp":1772141250003,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":40},"timestamp":1772141250128,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":46},"timestamp":1772141250274,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":50},"timestamp":1772141250413,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":52},"timestamp":1772141250534,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772141259718,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1012,"reason":"","wasClean":false},"timestamp":1772141316840,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772141499876,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772141500813,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772141512927,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772141513552,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772141529281,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772141530005,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onerror","message":"WebSocket onerror","data":{"type":"object"},"timestamp":1772141541773,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1006,"reason":"","wasClean":false},"timestamp":1772141541777,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772141547349,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772141548028,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5037},"timestamp":1772141548351,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772141548668,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772141548694,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772141548719,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772141548724,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772141548669,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772141548732,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772141548724,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772141548720,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772141548725,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772141548726,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.96,"queueRemaining":0},"timestamp":1772141551529,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":15},"timestamp":1772141552494,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":16},"timestamp":1772141552622,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":16},"timestamp":1772141552742,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":18},"timestamp":1772141552870,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":18},"timestamp":1772141553005,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":20},"timestamp":1772141553147,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:scheduleAudioPlayback","message":"source.start() called","data":{"ctxState":"running","duration":0.12,"queueRemaining":21},"timestamp":1772141553274,"hypothesisId":"C"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772141562636,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1012,"reason":"","wasClean":true},"timestamp":1772141619836,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772141922525,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772141923403,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onerror","message":"WebSocket onerror","data":{"type":"object"},"timestamp":1772141935588,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1006,"reason":"","wasClean":false},"timestamp":1772141935592,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772141941965,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772141942644,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":4852},"timestamp":1772141942968,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772141943242,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772141943283,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772141943243,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772141943321,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772141943322,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772141943323,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772141943333,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772141943335,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772141943325,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772141943338,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772141959811,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1000,"reason":"","wasClean":true},"timestamp":1772141964785,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772142165612,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772142166424,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":4931},"timestamp":1772142166748,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772142167144,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772142167187,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772142167145,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772142167222,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772142167223,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772142167233,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772142167239,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772142167242,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772142167224,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772142167225,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772142179791,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1012,"reason":"","wasClean":true},"timestamp":1772142236861,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772142322479,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772142323651,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onerror","message":"WebSocket onerror","data":{"type":"object"},"timestamp":1772142327770,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1006,"reason":"","wasClean":false},"timestamp":1772142327773,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772142331688,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772142332455,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5119},"timestamp":1772142332773,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772142333048,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772142333048,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772142333070,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772142333096,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772142333097,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772142333102,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772142333104,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772142333097,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772142333107,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772142333106,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772142354966,"hypothesisId":"H4"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onclose","message":"WebSocket onclose","data":{"code":1000,"reason":"","wasClean":true},"timestamp":1772142366276,"hypothesisId":"H2_H3_H4"}
+{"sessionId":"eed6f8","location":"page.tsx:connectAPI","message":"connectAPI called","data":{},"timestamp":1772142427193,"hypothesisId":"H1"}
+{"sessionId":"eed6f8","location":"useAudioPipeline.ts:preparePlayback","message":"preparePlayback called","data":{"state":"running"},"timestamp":1772142427998,"hypothesisId":"A"}
+{"sessionId":"eed6f8","location":"page.tsx:ws.onopen","message":"sending setup","data":{"setupLength":5037},"timestamp":1772142428311,"hypothesisId":"H5"}
+{"sessionId":"eed6f8","location":"page.tsx:onmessage","message":"setupComplete check","data":{"hasSetupComplete":true,"keys":["setupComplete"]},"timestamp":1772142428574,"hypothesisId":"H1_H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":1},"timestamp":1772142428602,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":2},"timestamp":1772142428632,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":3},"timestamp":1772142428635,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:setupComplete","message":"setting isSetupComplete true, sending greeting","data":{},"timestamp":1772142428574,"hypothesisId":"H2"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":7},"timestamp":1772142428642,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":8},"timestamp":1772142428651,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":4},"timestamp":1772142428636,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":5},"timestamp":1772142428637,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:handleAudioInput","message":"mic chunk sent","data":{"sentSoFar":6},"timestamp":1772142428638,"hypothesisId":"H1_H3"}
+{"sessionId":"eed6f8","location":"page.tsx:serverContent","message":"turnComplete","data":{"turnIndex":1},"timestamp":1772142442219,"hypothesisId":"H4"}

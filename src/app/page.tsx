@@ -67,7 +67,9 @@ export default function Dashboard() {
   const modelTurnCountRef = useRef(0);
   const isSetupCompleteRef = useRef(false);
   const getCanSendRef = useRef<() => boolean>(() => false);
-  getCanSendRef.current = () => wsRef.current?.readyState === WebSocket.OPEN && isSetupCompleteRef.current === true;
+  getCanSendRef.current = () =>
+    wsRef.current?.readyState === WebSocket.OPEN &&
+    isSetupCompleteRef.current === true;
   useEffect(() => {
     isSetupCompleteRef.current = isSetupComplete;
   }, [isSetupComplete]);
@@ -214,16 +216,17 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
   const handleTextInput = (text: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
-        clientContent: {
-          turns: [{ role: 'user', parts: [{ text }] }],
-          turnComplete: true
-        }
+        realtimeInput: {
+          text,
+        },
       }));
       sessionNotesRef.current.push(`User said: ${text}`);
     }
   };
 
-  const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback, flushPlayback } = useAudioPipeline(handleAudioInput, getCanSendRef);
+  const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback, flushPlayback } = useAudioPipeline(handleAudioInput, getCanSendRef, {
+    // Rely on server-side VAD / proactivity; no explicit clientContent.turnComplete
+  });
 
   const handleFrame = (base64Frame: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -267,8 +270,9 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/proxy`;
+    const wsUrl =
+      process.env.NEXT_PUBLIC_WS_URL ||
+      `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/proxy`;
 
     const ws = new WebSocket(wsUrl);
 
@@ -293,17 +297,32 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         rawData = await rawData.text();
       }
 
-      const data = JSON.parse(rawData);
+      let data: { error?: { code?: number; message?: string }; serverContent?: unknown; toolCall?: unknown; [key: string]: unknown };
+      try {
+        data = JSON.parse(rawData as string) as typeof data;
+      } catch {
+        console.warn('WebSocket message was not JSON, skipping');
+        return;
+      }
 
       // ── Gemini API errors ──────────────────────────────────────────────────
-      if (data.error) {
-        dbg('error', `🔴 Gemini error ${data.error.code}: ${data.error.message}`);
-        console.error('Gemini API error:', data.error);
+      const err = data.error;
+      if (err) {
+        const msg = typeof err.message === 'string' ? err.message : String(err.message ?? err);
+        const code = err.code ?? '';
+        dbg('error', `🔴 Gemini error ${code}: ${msg}`);
+        console.error('Gemini API error:', msg, code);
         return;
       }
       if (data.serverContent) {
-        const sc = data.serverContent;
-        const interrupted = sc.interrupted ?? (sc as any).interrupted;
+        const sc = data.serverContent as Record<string, unknown> & {
+          interrupted?: boolean;
+          modelTurn?: { parts?: unknown[] };
+          turnComplete?: boolean;
+          inputTranscription?: { text?: string };
+          outputTranscription?: { text?: string };
+        };
+        const interrupted = sc.interrupted ?? (sc as Record<string, unknown>).interrupted;
         const modelTurn = sc.modelTurn ?? (sc as any).model_turn;
         const turnComplete = sc.turnComplete ?? (sc as any).turn_complete;
         if (turnComplete) modelTurnCountRef.current += 1;
@@ -323,11 +342,19 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           let audioChunks = 0;
           for (const part of parts) {
             const inlineData = part.inlineData ?? (part as any).inline_data;
-            if (inlineData?.data) {
+            if (inlineData?.data != null) {
               const mimeType = (inlineData.mimeType ?? (inlineData as any).mime_type ?? '').toLowerCase();
               if (mimeType.startsWith('audio/pcm')) {
-                queuePlayback(inlineData.data);
-                audioChunks++;
+                const raw = inlineData.data;
+                if (typeof raw === 'string') {
+                  try {
+                    queuePlayback(raw);
+                    audioChunks++;
+                  } catch (e) {
+                    console.warn('[page] queuePlayback error:', e);
+                    dbg('audio', `⚠️ Playback queue error: ${e}`);
+                  }
+                }
               }
             }
             const text = part.text;
@@ -350,20 +377,22 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         }
       }
 
-      if (data.serverContent?.inputTranscription) {
-        const t = data.serverContent.inputTranscription?.text;
+      const serverContent = data.serverContent as { inputTranscription?: { text?: string }; outputTranscription?: { text?: string } } | undefined;
+      if (serverContent?.inputTranscription) {
+        const t = serverContent.inputTranscription?.text;
         if (t) dbg('transcript', `🎤 User: ${t}`);
         sessionNotesRef.current.push(`User (Voice): ${t}`);
       }
 
-      if (data.serverContent?.outputTranscription) {
-        const t = data.serverContent.outputTranscription?.text;
+      if (serverContent?.outputTranscription) {
+        const t = serverContent.outputTranscription?.text;
         if (t) dbg('transcript', `🤖 Model: ${t}`);
       }
 
       // Also handle toolCall at top level (Gemini may send it separately)
-      if (data.toolCall) {
-        for (const fc of data.toolCall.functionCalls ?? []) {
+      const toolCall = data.toolCall as { functionCalls?: Array<{ name?: string; args?: unknown; id?: string }> } | undefined;
+      if (toolCall?.functionCalls) {
+        for (const fc of toolCall.functionCalls) {
           dbg('tool', `🔧 tool_call (top-level): ${fc.name}`);
           handleToolCall(fc);
         }

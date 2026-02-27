@@ -39,6 +39,7 @@ Welcome, Agent. This document provides the essential context, technical standard
 - **No Placeholders**: Use `generate_image` or actual assets; avoid generic placeholders.
 - **Always write tests for new features**: Never skip writing tests for new features. Tests should be written in the `tests/` directory and should be run using the `npm run test` command. 
 - **Always run tests before committing**: Never commit code without running tests first. Use `npm run test` to run all tests.
+-**When Using python always use venv**: Always spin up a venv when using pythion
 
 ## ⚠️ Known Gotchas
 - **WebSocket Stability**: Ensure robust error handling for audio stream disconnections.

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, type MutableRefObject } from 'react';
 
-const SPEECH_RMS_THRESHOLD = 300;
-const SILENCE_MS_BEFORE_TURN_COMPLETE = 700;
+const SPEECH_RMS_THRESHOLD = 200;
+const SILENCE_MS_BEFORE_TURN_COMPLETE = 600;
+const MIN_SPEECH_MS_BEFORE_END = 300;
 
 // The Audio Pipeline Hook
 // INPUT:  16kHz, 16-bit mono PCM (microphone → Gemini)
@@ -17,6 +18,7 @@ export function useAudioPipeline(
     const onUserStoppedSpeakingRef = useRef(options?.onUserStoppedSpeaking);
     onUserStoppedSpeakingRef.current = options?.onUserStoppedSpeaking;
     const lastSpeechTimeRef = useRef<number>(0);
+    const speechStartTimeRef = useRef<number>(0);
 
     // Separate contexts: recording must be 16kHz, playback must match Gemini output (24kHz)
     const recordingCtxRef = useRef<AudioContext | null>(null);
@@ -70,6 +72,9 @@ export function useAudioPipeline(
         source.start(playTime);
         nextPlayTimeRef.current = playTime + buffer.duration;
 
+        if (playLogCountRef.current === 0) {
+            console.log('[AudioPipeline] Playback started, queue length:', playbackQueueRef.current.length);
+        }
         if (playLogCountRef.current < 8) {
             playLogCountRef.current += 1;
             fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:scheduleAudioPlayback',message:'source.start() called',data:{ctxState:ctx.state,duration:buffer.duration,queueRemaining:playbackQueueRef.current.length},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
@@ -122,49 +127,80 @@ export function useAudioPipeline(
         }
     }, [scheduleAudioPlayback]);
 
-    const queuePlayback = useCallback((base64Pcm: string) => {
+    const queuePlayback = useCallback((base64Pcm: string | ArrayBuffer | Uint8Array) => {
         if (!playbackCtxRef.current) {
-            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            playbackCtxRef.current = ctx;
-            const gain = ctx.createGain();
-            gain.gain.value = 1;
-            gain.connect(ctx.destination);
-            playbackGainRef.current = gain;
+            console.warn('[AudioPipeline] queuePlayback called but no playback context; call preparePlayback() on user gesture first.');
+            return;
         }
 
         const ctx = playbackCtxRef.current;
         if (ctx.state === 'suspended') {
-            ctx.resume();
+            ctx.resume().catch((e) => console.warn('[AudioPipeline] resume failed:', e));
         }
 
-        const binaryStr = window.atob(base64Pcm);
-        const byteLen = binaryStr.length;
-        const ab = new ArrayBuffer(byteLen);
-        const bytes = new Uint8Array(ab);
-        for (let i = 0; i < byteLen; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
+        let pcm16: Int16Array;
+        try {
+            let binaryStr: string;
+            if (typeof base64Pcm === 'string') {
+                binaryStr = window.atob(base64Pcm);
+            } else if (base64Pcm instanceof Uint8Array) {
+                const bytes = base64Pcm;
+                const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+                const numSamples = ab.byteLength >> 1;
+                pcm16 = new Int16Array(ab, 0, numSamples);
+                playbackAccumulatorRef.current.push(pcm16);
+                playbackAccumulatorSamplesRef.current += numSamples;
+                if (playbackAccumulatorSamplesRef.current >= TARGET_SAMPLES) flushAccumulator();
+                if (!isPlayingRef.current && playbackQueueRef.current.length > 0) {
+                    nextPlayTimeRef.current = ctx.currentTime;
+                    scheduleAudioPlayback();
+                }
+                return;
+            } else {
+                const ab = base64Pcm instanceof ArrayBuffer ? base64Pcm : (base64Pcm as ArrayBuffer);
+                const numSamples = ab.byteLength >> 1;
+                pcm16 = new Int16Array(ab, 0, numSamples);
+                playbackAccumulatorRef.current.push(pcm16);
+                playbackAccumulatorSamplesRef.current += numSamples;
+                if (playbackAccumulatorSamplesRef.current >= TARGET_SAMPLES) flushAccumulator();
+                if (!isPlayingRef.current && playbackQueueRef.current.length > 0) {
+                    nextPlayTimeRef.current = ctx.currentTime;
+                    scheduleAudioPlayback();
+                }
+                return;
+            }
+            const byteLen = binaryStr.length;
+            const ab = new ArrayBuffer(byteLen);
+            const bytes = new Uint8Array(ab);
+            for (let i = 0; i < byteLen; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+            }
+            const numSamples = byteLen >> 1;
+            pcm16 = new Int16Array(ab, 0, numSamples);
+        } catch (e) {
+            console.error('[AudioPipeline] queuePlayback decode error:', e);
+            return;
         }
-        const numSamples = byteLen >> 1;
-        const pcm16 = new Int16Array(ab, 0, numSamples);
         playbackAccumulatorRef.current.push(pcm16);
-        playbackAccumulatorSamplesRef.current += numSamples;
+        playbackAccumulatorSamplesRef.current += pcm16.length;
 
         if (playbackAccumulatorSamplesRef.current >= TARGET_SAMPLES) {
             flushAccumulator();
         }
-        const willSchedule = !isPlayingRef.current;
-        if (willSchedule && playbackQueueRef.current.length > 0) {
+        if (!isPlayingRef.current && playbackQueueRef.current.length > 0) {
             nextPlayTimeRef.current = ctx.currentTime;
             scheduleAudioPlayback();
-        }
-        if (playbackQueueRef.current.length <= 2 || willSchedule) {
-            fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:queuePlayback',message:'chunk queued',data:{ctxState:ctx.state,queueLen:playbackQueueRef.current.length,accumulatorSamples:playbackAccumulatorSamplesRef.current,willSchedule},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
         }
     }, [scheduleAudioPlayback, flushAccumulator]);
 
     const flushPlayback = useCallback(() => {
         flushAccumulator();
-    }, [flushAccumulator]);
+        const ctx = playbackCtxRef.current;
+        if (ctx && !isPlayingRef.current && playbackQueueRef.current.length > 0) {
+            nextPlayTimeRef.current = ctx.currentTime;
+            scheduleAudioPlayback();
+        }
+    }, [flushAccumulator, scheduleAudioPlayback]);
 
     const bargeIn = useCallback(() => {
         const cleared = playbackQueueRef.current.length;
@@ -196,7 +232,9 @@ export function useAudioPipeline(
 
             let chunkCount = 0;
             workletNode.port.onmessage = (event) => {
-                const buffer = event.data as ArrayBuffer;
+                const payload = event.data;
+                const buffer = typeof payload?.buffer !== 'undefined' ? payload.buffer : (payload as ArrayBuffer);
+                const rms = typeof payload?.rms === 'number' ? payload.rms : undefined;
                 const uint8 = new Uint8Array(buffer);
                 let binary = '';
                 for (let i = 0; i < uint8.length; i++) {
@@ -208,6 +246,23 @@ export function useAudioPipeline(
                     chunkCount++;
                     if (chunkCount % 50 === 0) {
                         console.log(`[AudioPipeline] Sent ${chunkCount} mic chunks to Gemini`);
+                    }
+                }
+                if (typeof rms === 'number') {
+                    const now = Date.now();
+                    if (rms > SPEECH_RMS_THRESHOLD) {
+                        if (lastSpeechTimeRef.current === 0) speechStartTimeRef.current = now;
+                        lastSpeechTimeRef.current = now;
+                    } else if (lastSpeechTimeRef.current > 0) {
+                        const silenceDuration = now - lastSpeechTimeRef.current;
+                        const speechDuration = lastSpeechTimeRef.current - speechStartTimeRef.current;
+                        if (silenceDuration >= SILENCE_MS_BEFORE_TURN_COMPLETE && speechDuration >= MIN_SPEECH_MS_BEFORE_END) {
+                            if (getCanSendRef?.current?.()) {
+                                lastSpeechTimeRef.current = 0;
+                                speechStartTimeRef.current = 0;
+                                onUserStoppedSpeakingRef.current?.();
+                            }
+                        }
                     }
                 }
             };

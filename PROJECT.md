@@ -43,13 +43,14 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ### Data Flow
 1. **Input**: Client captures Audio (Mic) + Frames (Canvas)
-2. **Gateway**: `server.js` (Custom Express/Next server) proxies WebSockets to Gemini
+2. **Gateway**: Python backend (`backend/`) runs a WebSocket server and connects to Gemini via the google-genai SDK. Set `NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws` and run `cd backend && uvicorn main:app --reload --port 8000`.
 3. **Context**: Server Action fetches `vibe_profile` from Supabase and injects it into the `setup` message
 4. **Brain**: Gemini processes multimodal stream + tools (Search, Image Gen)
 5. **Output**: Real-time audio + tool-call responses to update UI/DB
 
 ### Key Files
-- `server.js`: The WebSocket bridge & proxy
+- `backend/main.py`: WebSocket bridge (Live API session per client); `backend/config.py`: setup → SDK config mapping
+- `server.js`: HTTP server for Next.js (no WebSocket; use Python backend for Live API)
 - `src/app/page.tsx`: The main "Studio" UI & stream management
 - `src/lib/supabase.ts`: Database client & schema helpers
 - `public/pcm-processor.js`: Low-level audio handling
