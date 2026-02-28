@@ -78,6 +78,7 @@ export default function Dashboard() {
   const modelTurnCountRef = useRef(0);
   const isSetupCompleteRef = useRef(false);
   const getCanSendRef = useRef<() => boolean>(() => false);
+  const latestFrameRef = useRef<string | null>(null);
   getCanSendRef.current = () =>
     wsRef.current?.readyState === WebSocket.OPEN &&
     isSetupCompleteRef.current === true;
@@ -133,7 +134,7 @@ PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream at all times. If the user'
 
 TOOLS:
 - finalize_marketing_strategy: Set the current strategy phase.
-- generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Use a rich, brand-aware prompt.
+- generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Use a rich, brand-aware prompt. When the user has the live feed on (camera/screenshare), you can request assets "based on what you see" or "from the screen" — the system will use the current frame to inform the image (e.g. product shot, Figma frame, or design on screen).
 - create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description).
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
 - end_session: End the session when the user is done.
@@ -156,7 +157,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             },
             {
               name: 'generate_brand_asset',
-              description: 'Generates a brand visual asset (logo, banner, moodboard, etc.) using AI image generation. Call this whenever the user requests any visual creative output.',
+              description: 'Generates a brand visual asset (logo, banner, moodboard, etc.) using AI image generation. Call whenever the user requests visual creative output. If they have the live feed on and ask for something "based on what you see" or "from the screen/product", include that in the prompt — the system will use the current video frame to inform the image.',
               parameters: {
                 type: 'object',
                 properties: { image_prompt: { type: 'string', description: 'A detailed, brand-aware prompt for the image generator' } },
@@ -243,6 +244,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     useAudioPipeline(handleAudioInput, getCanSendRef);
 
   const handleFrame = (base64Frame: string) => {
+    latestFrameRef.current = base64Frame;
     if (!sendVideoToAgent || wsRef.current?.readyState !== WebSocket.OPEN) return;
     wsRef.current.send(JSON.stringify({
       realtimeInput: { mediaChunks: [{ mimeType: 'image/jpeg', data: base64Frame }] }
@@ -500,7 +502,8 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       sessionNotesRef.current.push(`Generating brand asset: ${args.image_prompt}`);
 
       try {
-        const dataUrl = await generateBrandAssetAction(args.image_prompt);
+        const referenceFrame = isCapturing ? (latestFrameRef.current ?? undefined) : undefined;
+        const dataUrl = await generateBrandAssetAction(args.image_prompt, referenceFrame);
         const saved = await saveBrandAssetAction(defaultBrandId, args.image_prompt, dataUrl);
         setBrandAssets(prev =>
           prev.map(a => a.id === assetId ? { ...a, id: saved.id, status: 'done', dataUrl } : a)

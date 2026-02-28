@@ -67,7 +67,7 @@ export async function summarizeSessionAction(brandId: string, meetingNotes: stri
         // 1. Summarize via Gemini REST/GenAI SDK
         console.log(`Summarizing session with ${meetingNotes.length} chars of notes...`);
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.5-flash',
             contents: [{
                 role: 'user', parts: [{
                     text: `Summarize the following meeting interactions and key decisions into a concise paragraph.
@@ -157,7 +157,7 @@ ${plansText}
 Respond with only the analysis text, no preamble or headings.`;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.5-flash',
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
         });
 
@@ -173,13 +173,41 @@ Respond with only the analysis text, no preamble or headings.`;
 
 /**
  * Generates a brand asset image using Imagen 3 on Vertex AI (avoids Predict API).
+ * If referenceImageBase64 (e.g. from the live feed) is provided, uses Gemini to derive
+ * an image prompt from the reference + user prompt, then generates with Imagen.
  * Returns a base64-encoded PNG data URL.
  */
-export async function generateBrandAssetAction(prompt: string): Promise<string> {
+export async function generateBrandAssetAction(
+    prompt: string,
+    referenceImageBase64?: string
+): Promise<string> {
     try {
+        let imagePrompt = prompt;
+        if (referenceImageBase64) {
+            const visionResponse = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: [{
+                    role: 'user',
+                    parts: [
+                        {
+                            inlineData: {
+                                mimeType: 'image/jpeg',
+                                data: referenceImageBase64,
+                            },
+                        },
+                        {
+                            text: `The user is asking for a brand asset. They said: "${prompt}". Based on what you see in the image (e.g. screen share, product, design, or camera view), write a single, detailed image generation prompt for an AI image model. Describe the scene or subject clearly and incorporate their request. Output only the prompt, no preamble.`,
+                        },
+                    ],
+                }],
+            });
+            const enhanced = visionResponse.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (enhanced) imagePrompt = enhanced;
+        }
+
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-ultra-generate-001',
-            prompt,
+            prompt: imagePrompt,
             config: {
                 numberOfImages: 1,
                 outputMimeType: 'image/png',
