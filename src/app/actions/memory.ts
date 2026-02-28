@@ -175,6 +175,31 @@ export async function fetchBrandAssetsAction(
 }
 
 /**
+ * Fetches all kanban tasks (marketing plans) for a given brand, newest first.
+ */
+export async function fetchKanbanTasksAction(
+    brandId: string
+): Promise<Array<{ id: string; title: string; platform: string; priority: 'high' | 'medium' | 'low'; description: string }>> {
+    const { data, error } = await supabase
+        .from('marketing_plans')
+        .select('id, title, platform, priority, description')
+        .eq('brand_id', brandId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Failed to fetch kanban tasks:', error);
+        return [];
+    }
+    return (data || []).map((row) => ({
+        id: row.id,
+        title: row.title,
+        platform: row.platform || 'Multi-channel',
+        priority: (row.priority as 'high' | 'medium' | 'low') || 'medium',
+        description: row.description || '',
+    }));
+}
+
+/**
  * Creates or upserts a marketing plan task into the kanban (marketing_plans table).
  */
 export async function createKanbanTaskAction(

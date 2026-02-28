@@ -34,8 +34,8 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] Strategic Grounding: Google Search integration for trends
 
 ### 5. 🔄 The "Refine" Loop (Agentic Workflow)
-- [ ] Kanban Bridge: Turning ideas into "Draft Plans"
-- [ ] The "Recall" Button: Restarting sessions with specific mission context
+- [x] Kanban Bridge: Turning ideas into "Draft Plans" (AI `create_kanban_task` tool + Strategy Flow UI)
+- [ ] **Next**: The "Recall" Button: Restarting sessions with specific mission context
 
 ---
 
@@ -76,4 +76,4 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ---
 *Reference: See [AGENTS.md](AGENTS.md) for detailed coding standards and workflow details.*
-*Last Updated: 2026-02-26*
+*Last Updated: 2026-02-28*

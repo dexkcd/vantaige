@@ -13,6 +13,7 @@ import {
   createKanbanTaskAction,
   saveBrandAssetAction,
   fetchBrandAssetsAction,
+  fetchKanbanTasksAction,
 } from './actions/memory';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
 
@@ -93,6 +94,9 @@ export default function Dashboard() {
         status: (a.status as BrandAsset['status']) || 'done',
         dataUrl: a.image_url,
       })));
+
+      const savedTasks = await fetchKanbanTasksAction(defaultBrandId);
+      setKanbanTasks(savedTasks);
     };
     loadContext();
   }, []);
