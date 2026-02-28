@@ -90,10 +90,9 @@ export default function Dashboard() {
   // Agent instructions — camelCase per Live API WebSocket (ai.google.dev/api/live). realtimeInputConfig enables VAD/turn-taking like the official audio-orb sample.
   const setupMessage = {
     setup: {
-      model: 'models/gemini-2.5-flash-native-audio-preview-12-2025',
+      model: 'gemini-live-2.5-flash-native-audio',
       generationConfig: {
         responseModalities: ['AUDIO'],
-        mediaResolution: 'MEDIA_RESOLUTION_MEDIUM',
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {
@@ -102,15 +101,9 @@ export default function Dashboard() {
           },
         },
       },
-      contextWindowCompression: {
-        triggerTokens: '104857',
-        slidingWindow: { targetTokens: '52428' },
-      },
-      // Enable automatic turn-taking: model responds after user stops speaking (VAD).
+      // Minimal realtime config: VAD only (activityHandling/turnCoverage can trigger 1008 on this model)
       realtimeInputConfig: {
         automaticActivityDetection: { disabled: false },
-        activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
-        turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY',
       },
       systemInstruction: {
         parts: [
@@ -130,70 +123,6 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           },
         ],
       },
-      tools: [
-        {
-          functionDeclarations: [
-            {
-              name: 'finalize_marketing_strategy',
-              description: 'Sets the current marketing strategy phase based on conversation.',
-              parameters: {
-                type: 'object',
-                properties: { phase: { type: 'string', description: 'The strategy phase name' } },
-                required: ['phase'],
-              },
-            },
-            {
-              name: 'generate_brand_asset',
-              description: 'Generates a brand visual asset (logo, banner, moodboard, etc.) using AI image generation. Call this whenever the user requests any visual creative output.',
-              parameters: {
-                type: 'object',
-                properties: { image_prompt: { type: 'string', description: 'A detailed, brand-aware prompt for the image generator' } },
-                required: ['image_prompt'],
-              },
-            },
-            {
-              name: 'create_kanban_task',
-              description: 'Converts a brainstormed idea into a persistent task on the dashboard. MUST be called when adding something to the roadmap or plan.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  title: { type: 'string', description: 'Short title for the task' },
-                  description: { type: 'string', description: 'Detailed description of the task and its strategic rationale' },
-                  platform: {
-                    type: 'string',
-                    enum: ['TikTok', 'Instagram', 'Web', 'Email'],
-                    description: 'The platform or channel for this task',
-                  },
-                  priority: {
-                    type: 'string',
-                    enum: ['low', 'medium', 'high'],
-                    description: 'Task priority level',
-                  },
-                },
-                required: ['title', 'description', 'platform', 'priority'],
-              },
-            },
-            {
-              name: 'upsert_vibe_profile',
-              description: 'Updates the persistent brand identity of the user.',
-              parameters: {
-                type: 'object',
-                properties: { new_identity: { type: 'string', description: 'The new or updated brand identity description.' } },
-                required: ['new_identity'],
-              },
-            },
-            {
-              name: 'end_session',
-              description: 'Ends the current session when the conversation is naturally finished or the user requests to leave.',
-              parameters: {
-                type: 'object',
-                properties: {},
-                required: [],
-              },
-            },
-          ],
-        },
-      ],
     },
   };
 

@@ -1,7 +1,7 @@
 # 🦅 VantAIge: The Strategic Brand Engine
 
 **Status**: Alpha / Active Development
-**Stack**: Next.js, Supabase, Gemini Multimodal Live (WebSockets)
+**Stack**: Next.js, Supabase, Gemini Multimodal Live via Vertex AI (WebSockets)
 
 VantAIge is an AI-powered "Marketing Director" that combines real-time situational awareness (vision/audio) with a deep, persistent memory of brand identity (Vibe Profiles).
 
@@ -43,7 +43,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ### Data Flow
 1. **Input**: Client captures Audio (Mic) + Frames (Canvas)
-2. **Gateway**: Python backend (`backend/`) runs a WebSocket server and connects to Gemini via the google-genai SDK. Set `NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws` and run `cd backend && uvicorn main:app --reload --port 8000`.
+2. **Gateway**: Python backend (`backend/`) runs a WebSocket server and connects to Gemini via the google-genai SDK with Vertex AI (ADC auth). Set `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and `NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws`. Run `cd backend && uvicorn main:app --reload --port 8000`.
 3. **Context**: Server Action fetches `vibe_profile` from Supabase and injects it into the `setup` message
 4. **Brain**: Gemini processes multimodal stream + tools (Search, Image Gen)
 5. **Output**: Real-time audio + tool-call responses to update UI/DB

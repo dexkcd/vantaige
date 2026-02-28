@@ -42,8 +42,7 @@ def setup_to_live_config(setup: dict) -> LiveConnectConfig:
     )
     realtime_input_config = RealtimeInputConfig(
         automaticActivityDetection=automatic_activity_detection,
-        activityHandling=ric.get("activityHandling"),
-        turnCoverage=ric.get("turnCoverage"),
+        # Omit activityHandling/turnCoverage - can trigger 1008 on native-audio-preview
     )
 
     config_kw: dict = {
@@ -52,6 +51,9 @@ def setup_to_live_config(setup: dict) -> LiveConnectConfig:
     }
     if gen.get("mediaResolution"):
         config_kw["mediaResolution"] = gen["mediaResolution"]
+    # Skip contextWindowCompression for native-audio-preview (can trigger 1008 after a few turns)
+    # if gen.get("contextWindowCompression"):
+    #     config_kw["contextWindowCompression"] = gen["contextWindowCompression"]
     speech = gen.get("speechConfig")
     if speech:
         voice = (speech.get("voiceConfig") or {}).get("prebuiltVoiceConfig") or {}
@@ -59,8 +61,6 @@ def setup_to_live_config(setup: dict) -> LiveConnectConfig:
             config_kw["speechConfig"] = {
                 "voice_config": {"prebuilt_voice_config": {"voice_name": voice["voiceName"]}},
             }
-    if gen.get("contextWindowCompression"):
-        config_kw["contextWindowCompression"] = gen["contextWindowCompression"]
     si = setup.get("systemInstruction")
     if si and si.get("parts"):
         config_kw["systemInstruction"] = {"parts": [{"text": p.get("text", "")} for p in si["parts"]]}

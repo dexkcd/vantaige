@@ -3,9 +3,11 @@
 import { supabase } from '@/lib/supabase';
 import { GoogleGenAI } from '@google/genai';
 
-// Initialize the standard Gemini client for the summarizer
-const apiKey = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+const ai = new GoogleGenAI({
+    vertexai: true,
+    project: process.env.GOOGLE_CLOUD_PROJECT || '',
+    location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
+});
 
 export interface MarketingPlan {
     id?: string;

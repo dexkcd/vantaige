@@ -1,6 +1,7 @@
 """
 VantAIge Live API WebSocket bridge.
-Connects the Next.js frontend to the Gemini Multimodal Live API via the google-genai SDK.
+Connects the Next.js frontend to the Gemini Multimodal Live API via the google-genai SDK
+using Vertex AI (Application Default Credentials).
 """
 import asyncio
 import base64
@@ -23,12 +24,18 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="VantAIge Live API Bridge")
 
+GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
+GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+
 
 def get_client() -> genai.Client:
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY must be set")
-    return genai.Client(api_key=api_key)
+    if not GOOGLE_CLOUD_PROJECT:
+        raise ValueError("GOOGLE_CLOUD_PROJECT must be set for Vertex AI")
+    return genai.Client(
+        vertexai=True,
+        project=GOOGLE_CLOUD_PROJECT,
+        location=GOOGLE_CLOUD_LOCATION,
+    )
 
 
 def _part_to_client(part) -> dict:
@@ -214,7 +221,7 @@ async def websocket_endpoint(ws: WebSocket):
             await ws.send_json({"error": {"code": 400, "message": "First message must contain setup"}})
             await ws.close()
             return
-        model = setup.get("model", "models/gemini-2.5-flash-native-audio-preview-12-2025")
+        model = setup.get("model", "gemini-live-2.5-flash-native-audio")
         config = setup_to_live_config(setup)
         client = get_client()
 

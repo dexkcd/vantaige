@@ -13,6 +13,7 @@ Welcome, Agent. This document provides the essential context, technical standard
 - **Always update the project documentation when a new feature is added or an existing feature is modified.**
 
 ## 🛠 Tech Stack
+- **Infrastructure**: Always prioritize solutions to use Google Cloud whenever possible 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **Database / Auth**: [Supabase](https://supabase.com/)
 - **AI Engine**: Google Gemini API (Multimodal Live / WebSockets)
