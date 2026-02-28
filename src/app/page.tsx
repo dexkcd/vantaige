@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
-import { Mic, MicOff, Video, VideoOff, Play, Square, Loader2, Cpu, AlertCircle } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   fetchVantAIgeContext,
@@ -14,6 +14,7 @@ import {
   saveBrandAssetAction,
   fetchBrandAssetsAction,
   fetchKanbanTasksAction,
+  getCrossSessionTrendAnalysisAction,
 } from './actions/memory';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
 
@@ -54,6 +55,10 @@ export default function Dashboard() {
   const [isToolPending, setIsToolPending] = useState(false);
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
   const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
+
+  // Cross-session trend analysis
+  const [trendAnalysis, setTrendAnalysis] = useState<string | null>(null);
+  const [isTrendLoading, setIsTrendLoading] = useState(false);
 
   // Video feed: compositor can run (preview) but we don't send frames to Gemini until user turns this on
   const [sendVideoToAgent, setSendVideoToAgent] = useState(false);
@@ -714,6 +719,42 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               readOnly
             />
             <p className="text-xs text-neutral-500 mt-1">Saved to Persistent Memory Layer</p>
+          </div>
+
+          {/* Cross-session trend analysis */}
+          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 flex-shrink-0 backdrop-blur-sm">
+            <h3 className="text-sm text-neutral-400 mb-3 uppercase tracking-wider font-semibold flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <TrendingUp size={14} />
+                Cross-session trends
+              </span>
+              <button
+                onClick={async () => {
+                  setIsTrendLoading(true);
+                  setTrendAnalysis(null);
+                  try {
+                    const analysis = await getCrossSessionTrendAnalysisAction(defaultBrandId);
+                    setTrendAnalysis(analysis);
+                  } catch {
+                    setTrendAnalysis('Failed to load trend analysis.');
+                  } finally {
+                    setIsTrendLoading(false);
+                  }
+                }}
+                disabled={isTrendLoading}
+                className="text-xs font-medium text-indigo-400 hover:text-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isTrendLoading ? 'Analyzing…' : 'Analyze trends'}
+              </button>
+            </h3>
+            {trendAnalysis && (
+              <div className="rounded-xl bg-neutral-950/80 border border-neutral-800 p-3 max-h-40 overflow-y-auto custom-scrollbar">
+                <p className="text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap">{trendAnalysis}</p>
+              </div>
+            )}
+            {!trendAnalysis && !isTrendLoading && (
+              <p className="text-xs text-neutral-600 italic">Run analysis to see patterns across sessions.</p>
+            )}
           </div>
 
           {/* Session History */}

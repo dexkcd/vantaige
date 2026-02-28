@@ -17,6 +17,7 @@ Welcome, Agent. This document provides the essential context, technical standard
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **Database / Auth**: [Supabase](https://supabase.com/)
 - **AI Engine**: Google Gemini API (Multimodal Live / WebSockets)
+- **Gemini Models**: Always proritize using Gemini 3 models when choosing llm models *EXCEPT*: gemini-live-2.5-flash-native-audio
 - **Required Tech**: You are required to use gemini live api: https://ai.google.dev/gemini-api/docs/live?example=mic-stream
 - **Styling**: Vanilla CSS (Tailwind avoided for maximum design control)
 - **Runtime**: Node.js / Browser (WebWorkers for audio processing)

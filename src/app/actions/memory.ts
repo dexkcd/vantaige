@@ -67,7 +67,7 @@ export async function summarizeSessionAction(brandId: string, meetingNotes: stri
         // 1. Summarize via Gemini REST/GenAI SDK
         console.log(`Summarizing session with ${meetingNotes.length} chars of notes...`);
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: [{
                 role: 'user', parts: [{
                     text: `Summarize the following meeting interactions and key decisions into a concise paragraph.
@@ -100,6 +100,74 @@ export async function summarizeSessionAction(brandId: string, meetingNotes: stri
     } catch (error) {
         console.error('Summarization Error:', error);
         return false;
+    }
+}
+
+/**
+ * Cross-session trend analysis: fetches recent session logs and roadmap tasks,
+ * then uses Gemini to identify recurring themes, brand evolution, and strategic trends.
+ */
+export async function getCrossSessionTrendAnalysisAction(brandId: string): Promise<string> {
+    try {
+        const { data: vibeProfile } = await supabase
+            .from('vibe_profiles')
+            .select('brand_identity')
+            .eq('id', brandId)
+            .single();
+
+        const { data: sessionLogs } = await supabase
+            .from('session_logs')
+            .select('summary, created_at')
+            .eq('brand_id', brandId)
+            .order('created_at', { ascending: false })
+            .limit(15);
+
+        const { data: plans } = await supabase
+            .from('marketing_plans')
+            .select('title, platform, priority, created_at')
+            .eq('brand_id', brandId)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        const sessionsText =
+            (sessionLogs || [])
+                .map((l, i) => `Session ${i + 1} (${new Date(l.created_at).toLocaleDateString()}): ${l.summary}`)
+                .join('\n\n') || 'No sessions yet.';
+
+        const plansText =
+            (plans || [])
+                .map((p) => `- ${p.title} [${p.platform}] (${p.priority})`)
+                .join('\n') || 'No roadmap tasks yet.';
+
+        const prompt = `You are a strategic brand analyst. Given the following data for one brand, write a concise "Cross-Session Trend Analysis" (2–4 short paragraphs). Identify:
+- Recurring themes or priorities across sessions
+- How the brand direction or decisions have evolved over time
+- Strategic patterns (e.g. channel focus, asset types, messaging)
+- One or two actionable insights or recommendations
+
+Current Vibe Profile (brand identity):
+${vibeProfile?.brand_identity ?? 'Not set.'}
+
+Recent session summaries (newest first):
+${sessionsText}
+
+Recent roadmap / marketing plan tasks:
+${plansText}
+
+Respond with only the analysis text, no preamble or headings.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        });
+
+        const text =
+            response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+            'Not enough session or roadmap data yet to identify trends. Run a few more sessions and add tasks.';
+        return text;
+    } catch (error) {
+        console.error('Cross-session trend analysis error:', error);
+        throw new Error('Failed to compute trend analysis');
     }
 }
 

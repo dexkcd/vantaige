@@ -26,10 +26,10 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] **Vibe Profile (JSONB)**: Persistent brand DNA storage
 - [x] Session Continuity: Recalling past decisions & palettes
 - [x] Real-time Updates: `upsert_vibe_profile` mid-call
-- [ ] **Next**: Cross-session trend analysis
+- [x] Cross-session trend analysis (Gemini analysis over session logs + roadmap)
 
 ### 4. 🎨 Real-Time Execution
-- [ ] Nano Banana Asset Gen: Image generation during live calls
+- [x] **Nano Banana** Asset Gen: Image generation during live calls (Gemini 3 Pro Image Preview)
 - [ ] Launch Pack Sidebar: Pinned assets & copy for review
 - [x] Strategic Grounding: Google Search integration for trends
 
