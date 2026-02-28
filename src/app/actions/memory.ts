@@ -172,13 +172,13 @@ Respond with only the analysis text, no preamble or headings.`;
 }
 
 /**
- * Generates a brand asset image using Gemini 3 Pro (image preview).
+ * Generates a brand asset image using Imagen 3 on Vertex AI (avoids Predict API).
  * Returns a base64-encoded PNG data URL.
  */
 export async function generateBrandAssetAction(prompt: string): Promise<string> {
     try {
         const response = await ai.models.generateImages({
-            model: 'gemini-3-pro-image-preview',
+            model: 'imagen-4.0-ultra-generate-001',
             prompt,
             config: {
                 numberOfImages: 1,
@@ -188,7 +188,7 @@ export async function generateBrandAssetAction(prompt: string): Promise<string> 
 
         const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
         if (!imageBytes) {
-            throw new Error('No image bytes returned from Gemini');
+            throw new Error('No image bytes returned from Imagen');
         }
 
         return `data:image/png;base64,${imageBytes}`;
