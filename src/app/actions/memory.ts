@@ -104,13 +104,13 @@ export async function summarizeSessionAction(brandId: string, meetingNotes: stri
 }
 
 /**
- * Generates a brand asset image using Gemini Imagen 3.
+ * Generates a brand asset image using Gemini 3 Pro (image preview).
  * Returns a base64-encoded PNG data URL.
  */
 export async function generateBrandAssetAction(prompt: string): Promise<string> {
     try {
         const response = await ai.models.generateImages({
-            model: 'imagen-3.0-generate-002',
+            model: 'gemini-3-pro-image-preview',
             prompt,
             config: {
                 numberOfImages: 1,
@@ -120,7 +120,7 @@ export async function generateBrandAssetAction(prompt: string): Promise<string> 
 
         const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
         if (!imageBytes) {
-            throw new Error('No image bytes returned from Imagen');
+            throw new Error('No image bytes returned from Gemini');
         }
 
         return `data:image/png;base64,${imageBytes}`;
