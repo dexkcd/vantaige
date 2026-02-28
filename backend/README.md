@@ -1,6 +1,8 @@
 # VantAIge Live API Bridge (Python)
 
-WebSocket server that connects the Next.js frontend to the Gemini Multimodal Live API using the [google-genai](https://pypi.org/project/google-genai/) Python SDK via **Vertex AI**.
+WebSocket server that connects the Next.js frontend to the Gemini Multimodal Live API using the [google-genai](https://pypi.org/project/google-genai/) Python SDK. Supports **Vertex AI** (recommended for `gemini-live-2.5-flash-native-audio`) or **Gemini API** (API key).
+
+- [Vertex AI Live API overview](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api)
 
 ## Setup
 
@@ -22,21 +24,32 @@ WebSocket server that connects the Next.js frontend to the Gemini Multimodal Liv
    backend/.venv/bin/pip install -r backend/requirements.txt
    ```
 
-3. **Vertex AI Authentication**: This bridge uses Application Default Credentials (ADC):
+3. **Authentication** (choose one):
+
+   **Option A – Vertex AI** (recommended for `gemini-live-2.5-flash-native-audio`):
 
    ```bash
-   # One-time: log in with your Google Cloud account
    gcloud auth application-default login
+   ```
 
-   # Set your project ID and region in .env.local (project root):
+   In `.env.local` (project root):
+
+   ```bash
    GOOGLE_CLOUD_PROJECT=your_gcp_project_id
    GOOGLE_CLOUD_LOCATION=us-central1
    ```
 
-   The server reads `GOOGLE_CLOUD_PROJECT` (required) and `GOOGLE_CLOUD_LOCATION` (defaults to `us-central1`).
+   Ensure the Vertex AI API is enabled: `gcloud services enable aiplatform.googleapis.com`
 
-   > **Note**: Ensure the Vertex AI API is enabled in your GCP project:
-   > `gcloud services enable aiplatform.googleapis.com`
+   **Option B – Gemini API (API key):**
+
+   In `.env.local`:
+
+   ```bash
+   GEMINI_API_KEY=your_key_here
+   ```
+
+   Note: The model `gemini-live-2.5-flash-native-audio` is **only available on Vertex AI**. With an API key you must use a different Live model (e.g. from [Google AI Studio](https://aistudio.google.com/app/live)).
 
 ## Run
 

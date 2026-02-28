@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, PlusCircle, ImageIcon } from 'lucide-react';
+import { Download, PlusCircle, ImageIcon, RefreshCw } from 'lucide-react';
 
 export interface BrandAsset {
     id: string;
@@ -13,9 +13,10 @@ export interface BrandAsset {
 interface LaunchPackSidebarProps {
     assets: BrandAsset[];
     onAddToPlan: (asset: BrandAsset) => void;
+    onRegenerate?: (asset: BrandAsset) => void;
 }
 
-export default function LaunchPackSidebar({ assets, onAddToPlan }: LaunchPackSidebarProps) {
+export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }: LaunchPackSidebarProps) {
     const handleDownload = (asset: BrandAsset) => {
         if (!asset.dataUrl) return;
         const a = document.createElement('a');
@@ -89,22 +90,35 @@ export default function LaunchPackSidebar({ assets, onAddToPlan }: LaunchPackSid
                                     <p className="text-xs text-neutral-400 truncate mb-3" title={asset.prompt}>
                                         {asset.prompt}
                                     </p>
-                                    {asset.status === 'done' && (
+                                    {(asset.status === 'done' || asset.status === 'error') && (
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleDownload(asset)}
-                                                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs transition-colors"
-                                            >
-                                                <Download size={12} />
-                                                Download
-                                            </button>
-                                            <button
-                                                onClick={() => onAddToPlan(asset)}
-                                                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs transition-colors border border-indigo-500/30"
-                                            >
-                                                <PlusCircle size={12} />
-                                                Add to Plan
-                                            </button>
+                                            {asset.status === 'done' && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleDownload(asset)}
+                                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs transition-colors"
+                                                    >
+                                                        <Download size={12} />
+                                                        Download
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onAddToPlan(asset)}
+                                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs transition-colors border border-indigo-500/30"
+                                                    >
+                                                        <PlusCircle size={12} />
+                                                        Add to Plan
+                                                    </button>
+                                                </>
+                                            )}
+                                            {onRegenerate && (
+                                                <button
+                                                    onClick={() => onRegenerate(asset)}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 text-xs transition-colors border border-amber-500/20"
+                                                >
+                                                    <RefreshCw size={12} />
+                                                    Regenerate
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>

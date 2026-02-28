@@ -11,6 +11,8 @@ import {
   summarizeSessionAction,
   generateBrandAssetAction,
   createKanbanTaskAction,
+  saveBrandAssetAction,
+  fetchBrandAssetsAction,
 } from './actions/memory';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
 
@@ -83,6 +85,14 @@ export default function Dashboard() {
       const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(defaultBrandId);
       if (vibeProfile?.brand_identity) setBrandIdentity(vibeProfile.brand_identity);
       setSessionLogs(sessionLogs);
+
+      const savedAssets = await fetchBrandAssetsAction(defaultBrandId);
+      setBrandAssets(savedAssets.map(a => ({
+        id: a.id,
+        prompt: a.prompt,
+        status: (a.status as BrandAsset['status']) || 'done',
+        dataUrl: a.image_url,
+      })));
     };
     loadContext();
   }, []);
@@ -123,6 +133,70 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           },
         ],
       },
+      tools: [
+        {
+          functionDeclarations: [
+            {
+              name: 'finalize_marketing_strategy',
+              description: 'Sets the current marketing strategy phase based on conversation.',
+              parameters: {
+                type: 'object',
+                properties: { phase: { type: 'string', description: 'The strategy phase name' } },
+                required: ['phase'],
+              },
+            },
+            {
+              name: 'generate_brand_asset',
+              description: 'Generates a brand visual asset (logo, banner, moodboard, etc.) using AI image generation. Call this whenever the user requests any visual creative output.',
+              parameters: {
+                type: 'object',
+                properties: { image_prompt: { type: 'string', description: 'A detailed, brand-aware prompt for the image generator' } },
+                required: ['image_prompt'],
+              },
+            },
+            {
+              name: 'create_kanban_task',
+              description: 'Converts a brainstormed idea into a persistent task on the dashboard. MUST be called when adding something to the roadmap or plan.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string', description: 'Short title for the task' },
+                  description: { type: 'string', description: 'Detailed description of the task and its strategic rationale' },
+                  platform: {
+                    type: 'string',
+                    enum: ['TikTok', 'Instagram', 'Web', 'Email'],
+                    description: 'The platform or channel for this task',
+                  },
+                  priority: {
+                    type: 'string',
+                    enum: ['low', 'medium', 'high'],
+                    description: 'Task priority level',
+                  },
+                },
+                required: ['title', 'description', 'platform', 'priority'],
+              },
+            },
+            {
+              name: 'upsert_vibe_profile',
+              description: 'Updates the persistent brand identity of the user.',
+              parameters: {
+                type: 'object',
+                properties: { new_identity: { type: 'string', description: 'The new or updated brand identity description.' } },
+                required: ['new_identity'],
+              },
+            },
+            {
+              name: 'end_session',
+              description: 'Ends the current session when the conversation is naturally finished or the user requests to leave.',
+              parameters: {
+                type: 'object',
+                properties: {},
+                required: [],
+              },
+            },
+          ],
+        },
+      ],
     },
   };
 
@@ -408,7 +482,6 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       sendToolResponse(id, name, { success: true, phase: args.phase });
 
     } else if (name === 'generate_brand_asset') {
-      // Add placeholder in sidebar
       const assetId = `asset-${Date.now()}`;
       const newAsset: BrandAsset = { id: assetId, prompt: args.image_prompt, status: 'generating' };
       setBrandAssets(prev => [newAsset, ...prev]);
@@ -416,12 +489,14 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
       try {
         const dataUrl = await generateBrandAssetAction(args.image_prompt);
+        const saved = await saveBrandAssetAction(defaultBrandId, args.image_prompt, dataUrl);
         setBrandAssets(prev =>
-          prev.map(a => a.id === assetId ? { ...a, status: 'done', dataUrl } : a)
+          prev.map(a => a.id === assetId ? { ...a, id: saved.id, status: 'done', dataUrl } : a)
         );
-        sendToolResponse(id, name, { success: true, asset_id: assetId, message: 'Brand asset generated and displayed in Launch Pack.' });
+        sendToolResponse(id, name, { success: true, asset_id: saved.id, message: 'Brand asset generated and saved to Launch Pack.' });
         sessionNotesRef.current.push(`Generated brand asset for: ${args.image_prompt}`);
-      } catch {
+      } catch (err) {
+        console.error('Brand asset generation failed:', err);
         setBrandAssets(prev =>
           prev.map(a => a.id === assetId ? { ...a, status: 'error' } : a)
         );
@@ -463,6 +538,24 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       sendToolResponse(id, name, { success: true, message: 'Session ended.' });
       sessionNotesRef.current.push('AI voluntarily ended the session.');
       setTimeout(() => disconnectAPI(), 500);
+    }
+  };
+
+  const handleRegenerate = async (asset: BrandAsset) => {
+    setBrandAssets(prev =>
+      prev.map(a => a.id === asset.id ? { ...a, status: 'generating' as const, dataUrl: undefined } : a)
+    );
+    try {
+      const dataUrl = await generateBrandAssetAction(asset.prompt);
+      const saved = await saveBrandAssetAction(defaultBrandId, asset.prompt, dataUrl);
+      setBrandAssets(prev =>
+        prev.map(a => a.id === asset.id ? { ...a, id: saved.id, status: 'done' as const, dataUrl } : a)
+      );
+    } catch (err) {
+      console.error('Regeneration failed:', err);
+      setBrandAssets(prev =>
+        prev.map(a => a.id === asset.id ? { ...a, status: 'error' as const } : a)
+      );
     }
   };
 
@@ -721,7 +814,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
         {/* Pane 3: Launch Pack Sidebar */}
         <section className="col-span-12 md:col-span-6 lg:col-span-4 h-full flex flex-col">
-          <LaunchPackSidebar assets={brandAssets} onAddToPlan={handleAddToPlan} />
+          <LaunchPackSidebar assets={brandAssets} onAddToPlan={handleAddToPlan} onRegenerate={handleRegenerate} />
         </section>
       </main>
 

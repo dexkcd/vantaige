@@ -25,6 +25,16 @@ CREATE TABLE IF NOT EXISTS marketing_plans (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Create the brand_assets table for persisting generated images
+CREATE TABLE IF NOT EXISTS brand_assets (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  brand_id text REFERENCES vibe_profiles(id) ON DELETE CASCADE,
+  prompt text NOT NULL,
+  image_url text,
+  status text DEFAULT 'generating',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Note: Ensure Row Level Security (RLS) is configured appropriately if testing in production.
 -- For local development with anon key, you may need to enable RLS and add policies, or disable RLS temporarily.
 -- Example to allow anonymous access (for testing only!):

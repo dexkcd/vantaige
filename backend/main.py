@@ -1,7 +1,8 @@
 """
 VantAIge Live API WebSocket bridge.
-Connects the Next.js frontend to the Gemini Multimodal Live API via the google-genai SDK
-using Vertex AI (Application Default Credentials).
+Connects the Next.js frontend to the Gemini Multimodal Live API via the google-genai SDK.
+Supports either Vertex AI (ADC) or Gemini API (API key).
+See: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api
 """
 import asyncio
 import base64
@@ -29,13 +30,29 @@ GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 
 
 def get_client() -> genai.Client:
-    if not GOOGLE_CLOUD_PROJECT:
-        raise ValueError("GOOGLE_CLOUD_PROJECT must be set for Vertex AI")
-    return genai.Client(
-        vertexai=True,
-        project=GOOGLE_CLOUD_PROJECT,
-        location=GOOGLE_CLOUD_LOCATION,
-    )
+    """Use Vertex AI if GOOGLE_CLOUD_PROJECT is set, otherwise Gemini API (API key)."""
+    if GOOGLE_CLOUD_PROJECT:
+        logger.info("Using Vertex AI (project=%s, location=%s)", GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION)
+        return genai.Client(
+            vertexai=True,
+            project=GOOGLE_CLOUD_PROJECT,
+            location=GOOGLE_CLOUD_LOCATION,
+        )
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "Set GOOGLE_CLOUD_PROJECT (and ADC) for Vertex AI, or GEMINI_API_KEY for Gemini API. "
+            "gemini-live-2.5-flash-native-audio is only on Vertex AI."
+        )
+    logger.info("Using Gemini API (API key)")
+    return genai.Client(api_key=api_key)
+
+
+def normalize_model_for_backend(model: str) -> str:
+    """Vertex AI expects model ID without 'models/' prefix (e.g. gemini-live-2.5-flash-native-audio)."""
+    if model.startswith("models/"):
+        return model.replace("models/", "", 1)
+    return model
 
 
 def _part_to_client(part) -> dict:
@@ -221,7 +238,10 @@ async def websocket_endpoint(ws: WebSocket):
             await ws.send_json({"error": {"code": 400, "message": "First message must contain setup"}})
             await ws.close()
             return
-        model = setup.get("model", "gemini-live-2.5-flash-native-audio")
+        model = setup.get("model", "models/gemini-live-2.5-flash-native-audio")
+        # Vertex AI expects model ID without "models/" prefix
+        if GOOGLE_CLOUD_PROJECT:
+            model = normalize_model_for_backend(model)
         config = setup_to_live_config(setup)
         client = get_client()
 

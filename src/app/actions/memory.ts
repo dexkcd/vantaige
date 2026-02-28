@@ -67,7 +67,7 @@ export async function summarizeSessionAction(brandId: string, meetingNotes: stri
         // 1. Summarize via Gemini REST/GenAI SDK
         console.log(`Summarizing session with ${meetingNotes.length} chars of notes...`);
         const response = await ai.models.generateContent({
-            model: 'gemini-flash-latest',
+            model: 'gemini-2.5-flash',
             contents: [{
                 role: 'user', parts: [{
                     text: `Summarize the following meeting interactions and key decisions into a concise paragraph.
@@ -128,6 +128,50 @@ export async function generateBrandAssetAction(prompt: string): Promise<string> 
         console.error('Image generation error:', error);
         throw new Error('Failed to generate brand asset');
     }
+}
+
+/**
+ * Saves a brand asset record (prompt + data URL) to Supabase.
+ */
+export async function saveBrandAssetAction(
+    brandId: string,
+    prompt: string,
+    dataUrl: string
+): Promise<{ id: string }> {
+    await supabase
+        .from('vibe_profiles')
+        .upsert({ id: brandId, brand_identity: 'Default' }, { onConflict: 'id' });
+
+    const { data, error } = await supabase
+        .from('brand_assets')
+        .insert({ brand_id: brandId, prompt, image_url: dataUrl, status: 'done' })
+        .select('id')
+        .single();
+
+    if (error) {
+        console.error('Failed to save brand asset:', error);
+        throw new Error('Failed to save brand asset');
+    }
+    return data as { id: string };
+}
+
+/**
+ * Fetches all brand assets for a given brand, newest first.
+ */
+export async function fetchBrandAssetsAction(
+    brandId: string
+): Promise<Array<{ id: string; prompt: string; image_url: string; status: string; created_at: string }>> {
+    const { data, error } = await supabase
+        .from('brand_assets')
+        .select('*')
+        .eq('brand_id', brandId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Failed to fetch brand assets:', error);
+        return [];
+    }
+    return data || [];
 }
 
 /**
