@@ -2,8 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 
 // The Compositor Hook
 // Captures both screen and webcam.
-// Composites them onto a 1280x720 canvas at 1 FPS.
-// Outputs base64 JPEG parts via a callback.
+// Composites them onto a 1280x720 canvas.
+// Sends frames at a low rate (e.g. 1 every 3s) to avoid flooding the Live API and competing with audio turn-taking.
+const VIDEO_FRAME_INTERVAL_MS = 3000;
 export function useCompositor(onFrame: (base64: string) => void) {
     const [isCapturing, setIsCapturing] = useState(false);
     const videoRefCamera = useRef<HTMLVideoElement>(null);
@@ -41,7 +42,7 @@ export function useCompositor(onFrame: (base64: string) => void) {
             const ctx = canvas.getContext('2d');
             if (!ctx) return;
 
-            // 4. Start 1 FPS loop
+            // 4. Start low-FPS loop so video doesn't flood the stream and block audio replies
             intervalRef.current = setInterval(() => {
                 // Draw screen full size
                 if (videoRefScreen.current) {
@@ -67,7 +68,7 @@ export function useCompositor(onFrame: (base64: string) => void) {
                 if (base64Data) {
                     onFrame(base64Data);
                 }
-            }, 1000); // 1 FPS
+            }, VIDEO_FRAME_INTERVAL_MS);
 
             // Stop handling if user closes screenshare via browser UI
             screenStream.getVideoTracks()[0].onended = () => {

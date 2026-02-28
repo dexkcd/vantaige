@@ -108,15 +108,15 @@ async def consumer(session, ws: WebSocket):
                 out = _server_content_to_client(msg)
                 if out:
                     sc = out.get("serverContent", {})
-                    if sc.get("turnComplete"):
-                        logger.info(
-                            "Consumer: model reply complete -> client (%s audio chunks; if you hear nothing, check frontend playback)",
-                            model_turn_parts_this_turn,
-                        )
                     if sc.get("modelTurn", {}).get("parts"):
-                        model_turn_parts_this_turn += 1
+                        model_turn_parts_this_turn += len(sc["modelTurn"]["parts"])
                         if model_turn_parts_this_turn <= 3 or model_turn_parts_this_turn % 100 == 0:
                             logger.info("Consumer: serverContent modelTurn (part #%s) -> client", model_turn_parts_this_turn)
+                    if sc.get("turnComplete"):
+                        logger.info(
+                            "Consumer: model reply complete -> client (total parts this turn: %s)",
+                            model_turn_parts_this_turn,
+                        )
                     await ws.send_json(out)
                 out = _tool_call_to_client(msg)
                 if out:
@@ -176,6 +176,27 @@ async def producer(session, ws: WebSocket):
                             )
                         ]
                     )
+            elif "clientContent" in data:
+                cc = data["clientContent"] or {}
+                turns = cc.get("turns")
+                turn_complete = cc.get("turnComplete", cc.get("turn_complete", False))
+                # NOTE: Sending turnComplete with empty/no turns triggers APIError 1007 (invalid argument).
+                if turns is None:
+                    logger.info("Producer: clientContent ignored (no turns; turn_complete=%s)", turn_complete)
+                    continue
+                if isinstance(turns, list) and len(turns) == 0:
+                    logger.info("Producer: clientContent ignored (empty turns; turn_complete=%s)", turn_complete)
+                    continue
+                if isinstance(turns, str) and not turns.strip():
+                    logger.info("Producer: clientContent ignored (blank turns; turn_complete=%s)", turn_complete)
+                    continue
+
+                logger.info(
+                    "Producer: clientContent -> Gemini (turns=%s, turn_complete=%s)",
+                    len(turns) if isinstance(turns, list) else 1,
+                    turn_complete,
+                )
+                await session.send_client_content(turns=turns, turn_complete=bool(turn_complete))
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -198,6 +219,16 @@ async def websocket_endpoint(ws: WebSocket):
         client = get_client()
 
         async with client.aio.live.connect(model=model, config=config) as session:
+            # Send greeting to Gemini immediately so it replies before mic chunks flood the stream
+            try:
+                await session.send_client_content(
+                    turns=[{"role": "user", "parts": [{"text": "Hello, introduce yourself briefly."}]}],
+                    turn_complete=True,
+                )
+                logger.info("Backend: sent kick-off greeting to Gemini")
+            except Exception as e:
+                logger.warning("Backend: could not send kick-off greeting: %s", e)
+
             await ws.send_json({"setupComplete": True})
             consumer_task = asyncio.create_task(consumer(session, ws))
             producer_task = asyncio.create_task(producer(session, ws))

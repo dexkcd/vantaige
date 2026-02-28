@@ -52,6 +52,9 @@ export default function Dashboard() {
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
   const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
 
+  // Video feed: compositor can run (preview) but we don't send frames to Gemini until user turns this on
+  const [sendVideoToAgent, setSendVideoToAgent] = useState(false);
+
   // Debug log
   const [debugLogs, setDebugLogs] = useState<{ ts: string; type: string; msg: string }[]>([]);
   const [showDebug, setShowDebug] = useState(false);
@@ -224,16 +227,14 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
   };
 
-  const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback, flushPlayback } = useAudioPipeline(handleAudioInput, getCanSendRef, {
-    // Rely on server-side VAD / proactivity; no explicit clientContent.turnComplete
-  });
+  const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback, flushPlayback } =
+    useAudioPipeline(handleAudioInput, getCanSendRef);
 
   const handleFrame = (base64Frame: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        realtimeInput: { mediaChunks: [{ mimeType: 'image/jpeg', data: base64Frame }] }
-      }));
-    }
+    if (!sendVideoToAgent || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({
+      realtimeInput: { mediaChunks: [{ mimeType: 'image/jpeg', data: base64Frame }] }
+    }));
   };
 
   const { isCapturing, startCompositor, stopCompositor, videoRefCamera, videoRefScreen, canvasRef } = useCompositor(handleFrame);
@@ -411,20 +412,8 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       if (data.setupComplete ?? (data as any).setup_complete) {
         isSetupCompleteRef.current = true; // Sync ref immediately so worklet callback sees it before next render
         setIsSetupComplete(true);
-        dbg('ws', '⚙️ Setup acknowledged by Gemini — sending greeting');
-        fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:setupComplete',message:'setting isSetupComplete true, sending greeting',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-        // Send a greeting text to immediately force a model response.
-        setTimeout(() => {
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              clientContent: {
-                turns: [{ role: 'user', parts: [{ text: 'Hello, introduce yourself briefly.' }] }],
-                turnComplete: true
-              }
-            }));
-            dbg('ws', '💬 Auto-greeting sent to kick off first model turn');
-          }
-        }, 500);
+        dbg('ws', '⚙️ Setup acknowledged by Gemini');
+        fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:setupComplete',message:'setting isSetupComplete true',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
       }
     };
 
@@ -447,6 +436,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       setIsSetupComplete(false);
       stopRecording();
       stopCompositor();
+      setSendVideoToAgent(false);
 
       if (sessionNotesRef.current.length >= 1) {
         setIsSummarizing(true);
@@ -608,12 +598,21 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
           <div className="flex bg-neutral-900 rounded-full p-1 border border-neutral-800">
             <button
-              onClick={isCapturing ? stopCompositor : startCompositor}
+              onClick={isCapturing ? () => { stopCompositor(); setSendVideoToAgent(false); } : startCompositor}
               className={`p-3 rounded-full transition-all duration-300 ${isCapturing ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
               title="Toggle Compositor (Screen + Camera)"
             >
               {isCapturing ? <Video size={20} /> : <VideoOff size={20} />}
             </button>
+            {isCapturing && (
+              <button
+                onClick={() => setSendVideoToAgent((v) => !v)}
+                className={`p-3 rounded-full transition-all duration-300 ${sendVideoToAgent ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'text-neutral-500 hover:text-neutral-300'}`}
+                title={sendVideoToAgent ? 'Pause sending video to agent' : 'Send video to agent'}
+              >
+                {sendVideoToAgent ? 'Video on' : 'Video paused'}
+              </button>
+            )}
             <button
               className={`p-3 rounded-full transition-all duration-300 ${isRecording ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-500'}`}
               title="Status of Mic (Managed by Connection)"
