@@ -15,7 +15,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 ### 1. 👁️ The "Live Vision" Engine
 - [x] Dual-Stream Input (Webcam + Screen-Share)
 - [x] Low-Latency Compositor (1FPS Gemini Stream)
-- [ ] **Next**: Proactive Visual Auditing (Interruption logic for brand mismatches)
+- [x] Proactive Visual Auditing (Interruption logic for brand mismatches)
 
 ### 2. 🎙️ High-Fidelity Interaction (The "Director")
 - [x] True Barge-in Support (VAD-driven buffer clearing)
