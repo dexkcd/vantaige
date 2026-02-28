@@ -278,9 +278,12 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       return;
     }
 
+    // Live API runs on the Python backend (backend/main.py). Set NEXT_PUBLIC_WS_URL in production.
     const wsUrl =
       process.env.NEXT_PUBLIC_WS_URL ||
-      `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/proxy`;
+      (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'ws://localhost:8000/ws'
+        : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:8000/ws`);
 
     const ws = new WebSocket(wsUrl);
 

@@ -41,6 +41,13 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ## 🏗 Technical Architecture
 
+### Backend vs frontend (no redundancy)
+- **Python backend (`backend/`)**  
+  **Only** the WebSocket bridge to the Gemini Multimodal Live API. It forwards audio/video and client/setup messages; it does not run business logic or execute tools. Required for real-time voice/video.
+- **Next.js (frontend + server actions)**  
+  UI, Supabase (vibe profiles, session logs, assets, kanban), and **Gemini REST** for summarization and image generation. When the Live session returns a tool call (e.g. `generate_brand_asset`), the client calls these server actions and sends the result back over the same WebSocket to the backend → Gemini.  
+  So: Live API = Python; REST + DB = Next.js. Two places configure Gemini (backend for Live, server actions for REST) by design.
+
 ### Data Flow
 1. **Input**: Client captures Audio (Mic) + Frames (Canvas)
 2. **Gateway**: Python backend (`backend/`) runs a WebSocket server and connects to Gemini via the google-genai SDK with Vertex AI (ADC auth). Set `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and `NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws`. Run `cd backend && uvicorn main:app --reload --port 8000`.
