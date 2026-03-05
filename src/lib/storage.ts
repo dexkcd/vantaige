@@ -58,3 +58,23 @@ export function resolveImageUrlForFirestore(
     const base64 = imageUrl.startsWith('data:') ? imageUrl : `data:${mimeType};base64,${imageUrl}`;
     return uploadBrandAssetImage(brandId, base64, mimeType);
 }
+
+const SIGNED_URL_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Creates a signed URL for a file at the given GCS URI (e.g. from Veo video output).
+ * Format: gs://bucket-name/path/to/file.mp4
+ */
+export async function createSignedUrlForGcsPath(gcsUri: string): Promise<string> {
+    const match = gcsUri.match(/^gs:\/\/([^/]+)\/(.+)$/);
+    if (!match) throw new Error(`Invalid GCS URI: ${gcsUri}`);
+    const [, bucketName, filePath] = match;
+
+    const bucket = getStorage().bucket(bucketName);
+    const file = bucket.file(filePath);
+    const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + SIGNED_URL_EXPIRY_MS,
+    });
+    return signedUrl;
+}

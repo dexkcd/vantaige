@@ -140,6 +140,22 @@ def _tool_call_to_client(msg) -> dict | None:
     }
 
 
+async def _send_json_if_connected(ws: WebSocket, data: dict) -> bool:
+    """Send JSON to WebSocket if still connected. Avoids RuntimeError after client disconnect."""
+    try:
+        if ws.client_state.name != "CONNECTED":
+            return False
+        await ws.send_json(data)
+        return True
+    except RuntimeError as e:
+        msg = str(e)
+        if "websocket.send" in msg and ("websocket.close" in msg.lower() or "already completed" in msg.lower()):
+            logger.debug("Consumer: skip send (connection closed)")
+            return False
+        raise
+    return False
+
+
 async def consumer(session, ws: WebSocket):
     """Read from session.receive() and send to client WebSocket. Loop so we get every turn."""
     turn_num = 0
@@ -151,7 +167,7 @@ async def consumer(session, ws: WebSocket):
             async for msg in session.receive():
                 if getattr(msg, "setup_complete", None):
                     logger.info("Consumer: setup_complete -> client")
-                    await ws.send_json({"setupComplete": True})
+                    await _send_json_if_connected(ws, {"setupComplete": True})
                 out = _server_content_to_client(msg)
                 if out:
                     sc = out.get("serverContent", {})
@@ -164,14 +180,14 @@ async def consumer(session, ws: WebSocket):
                             "Consumer: model reply complete -> client (total parts this turn: %s)",
                             model_turn_parts_this_turn,
                         )
-                    await ws.send_json(out)
+                    await _send_json_if_connected(ws, out)
                 out = _tool_call_to_client(msg)
                 if out:
                     logger.info("Consumer: toolCall -> client")
-                    await ws.send_json(out)
+                    await _send_json_if_connected(ws, out)
                 if getattr(msg, "error", None):
                     logger.warning("Consumer: error from Gemini: %s", msg.error)
-                    await ws.send_json({"error": {"message": str(msg.error)}})
+                    await _send_json_if_connected(ws, {"error": {"message": str(msg.error)}})
             logger.info("Consumer: receive() iterator ended, looping for next exchange")
     except APIError as e:
         # 1000 = Normal Closure (user disconnected, Cloud Run scaled down, deployment, etc.)

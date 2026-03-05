@@ -29,13 +29,15 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] Cross-session trend analysis (Gemini analysis over session logs + roadmap)
 
 ### 4. 🎨 Real-Time Execution
-- [x] **Nano Banana** Asset Gen: Image generation during live calls (Gemini 3 Pro Image Preview)
+- [x] **Nano Banana** Asset Gen: Image generation during live calls (Imagen 4.0 via Vertex AI)
+- [x] **Short-Form Video**: TikTok/YouTube Shorts (9:16) via [Veo 3.1](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/veo/3-1-generate). Reference brand assets for visual consistency. Videos are 4, 6, or 8 seconds.
 - [ ] Launch Pack Sidebar: Pinned assets & copy for review
 - [x] Strategic Grounding: Google Search integration for trends
 
 ### 5. 🔄 The "Refine" Loop (Agentic Workflow)
 - [x] Kanban Bridge: Turning ideas into "Draft Plans" (AI `create_kanban_task` tool + Strategy Flow UI)
-- [x] Roadmap Task Detail View: Clickable cards with modal; image posts (image, caption, tags); status workflow (draft, pending, in progress, done)
+- [x] Roadmap Task Detail View: Clickable cards with modal; image posts (image, caption, tags); video posts (TikTok/YouTube Shorts via `video_asset_id`); status workflow (draft, pending, in progress, done)
+- [x] **Session Management**: New session creates passcode; Continue session restores by passcode. Documents owned by session.
 - [ ] **Next**: The "Recall" Button: Restarting sessions with specific mission context
 
 ---
@@ -46,13 +48,18 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - **Python backend (`backend/`)**  
   **Only** the WebSocket bridge to the Gemini Multimodal Live API. It forwards audio/video and client/setup messages; it does not run business logic or execute tools. Required for real-time voice/video.
 - **Next.js (frontend + server actions)**  
-  UI, Firestore (vibe profiles, session logs, assets, kanban), and **Gemini REST** for summarization and image generation. When the Live session returns a tool call (e.g. `generate_brand_asset`), the client calls these server actions and sends the result back over the same WebSocket to the backend → Gemini.  
+  UI, Firestore (vibe profiles, session logs, assets, short videos, kanban), and **Gemini REST** for summarization, image generation (Imagen), and video generation (Veo 3.1). When the Live session returns a tool call (e.g. `generate_brand_asset`, `generate_short_form_video`), the client calls these server actions and sends the result back over the same WebSocket to the backend → Gemini.  
   So: Live API = Python; REST + DB = Next.js. Two places configure Gemini (backend for Live, server actions for REST) by design.
+
+### Session Flow
+1. **Landing**: User chooses **New Session** (creates passcode) or **Continue Session** (enters passcode).
+2. **Scope**: All data (vibe profiles, session logs, marketing plans, brand assets, short videos) is scoped by `session_id`. Passcode maps to session via `sessions` collection.
+3. **Connect**: Once a session is active, user can connect to the Live API and run the Studio.
 
 ### Data Flow
 1. **Input**: Client captures Audio (Mic) + Frames (Canvas)
 2. **Gateway**: Python backend (`backend/`) runs a WebSocket server and connects to Gemini via the google-genai SDK with Vertex AI (ADC auth). Set `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and `NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws`. Run `cd backend && uvicorn main:app --reload --port 8000`.
-3. **Context**: Server Action fetches `vibe_profile` from Firestore and injects it into the `setup` message
+3. **Context**: Server Action fetches `vibe_profile` from Firestore (by session scope) and injects it into the `setup` message
 4. **Brain**: Gemini processes multimodal stream + tools (Search, Image Gen)
 5. **Output**: Real-time audio + tool-call responses to update UI/DB
 
@@ -60,8 +67,10 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - `backend/main.py`: WebSocket bridge (Live API session per client); `backend/config.py`: setup → SDK config mapping
 - `server.js`: HTTP server for Next.js (no WebSocket; use Python backend for Live API)
 - `src/app/page.tsx`: The main "Studio" UI & stream management
-- `src/lib/firestore.ts`: Database client & Firestore collections
-- `src/lib/storage.ts`: Brand asset image upload to Firebase Storage (avoids Firestore 1MB string limit)
+- `src/app/actions/memory.ts`: Server actions (Imagen, Veo 3.1, Firestore, summarization)
+- `src/lib/firestore.ts`: Database client & Firestore collections (sessions, vibe_profiles, session_logs, brand_assets, short_videos, marketing_plans)
+- `src/lib/storage.ts`: Brand asset images & signed URLs for Veo video output
+- `src/components/ShortsSidebar.tsx`: Short-form video display (Launch Pack → Shorts tab)
 - `public/pcm-processor.js`: Low-level audio handling
 
 ## 📜 Agent Guidelines
@@ -135,7 +144,7 @@ gcloud iam service-accounts add-iam-policy-binding $SA \
   --project=$PROJECT_ID
 ```
 
-**Cloud Run** – for Firestore (vibe profile, session logs), Vertex AI (Gemini summarization), and Firebase Storage (brand assets), grant to the runtime service account:
+**Cloud Run** – for Firestore (vibe profile, session logs, brand assets, short videos), Vertex AI (Gemini summarization, Imagen, Veo 3.1), and Firebase Storage (brand assets, Veo output), grant to the runtime service account:
 ```bash
 PROJECT_ID="vantaige-417aa"
 SA="923420874741-compute@developer.gserviceaccount.com"  # Default Cloud Run SA
@@ -146,9 +155,11 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA"
 # Vertex AI (Gemini) for summarization, image gen, etc.
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/aiplatform.user"
 
-# Firebase Storage for brand asset images (uploaded to gs://{projectId}.firebasestorage.app/brand-assets/)
+# Firebase Storage for brand assets and Veo video output (gs://{projectId}.firebasestorage.app/)
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/storage.objectAdmin"
 ```
+
+**Firestore indexes**: The `short_videos` collection requires a composite index. Deploy with `firebase deploy --only firestore:indexes`, or create it via the [Firebase Console](https://console.firebase.google.com) when prompted. See `firestore/DEPLOY_INDEX.md`.
 
 ---
 *Reference: See [AGENTS.md](AGENTS.md) for detailed coding standards and workflow details.*

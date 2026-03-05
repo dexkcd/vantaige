@@ -11,9 +11,18 @@ import {
     fetchBrandAssets,
     getBrandAssetById,
     updateMarketingPlanStatus,
+    deleteMarketingPlan,
+    insertShortVideo,
+    updateShortVideo,
+    getShortVideoById,
+    fetchShortVideos,
+    hasGeneratingShortVideo,
+    insertSession,
+    getSessionByPasscode,
 } from '@/lib/firestore';
-import { uploadBrandAssetImage, resolveImageUrlForFirestore } from '@/lib/storage';
-import { GoogleGenAI } from '@google/genai';
+import { uploadBrandAssetImage, resolveImageUrlForFirestore, createSignedUrlForGcsPath } from '@/lib/storage';
+import { GoogleGenAI, GenerateVideosOperation, VideoGenerationReferenceType } from '@google/genai';
+import { randomUUID, randomBytes } from 'crypto';
 
 function createGenAIClient() {
     const opts = {
@@ -42,6 +51,10 @@ export interface MarketingPlan {
     platform?: string;
     priority?: 'high' | 'medium' | 'low';
     description?: string;
+    image_url?: string;
+    video_url?: string;
+    caption?: string;
+    tags?: string[];
     created_at?: string;
 }
 
@@ -56,6 +69,34 @@ export async function fetchVantAIgeContext(brandId: string) {
     const vibeProfile = await getVibeProfile(brandId);
     const sessionLogs = await fetchSessionLogs(brandId, 3);
     return { vibeProfile, sessionLogs };
+}
+
+const PASSCODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generatePasscode(length = 6): string {
+    const bytes = randomBytes(length);
+    let passcode = '';
+    for (let i = 0; i < length; i++) {
+        passcode += PASSCODE_CHARS[bytes[i]! % PASSCODE_CHARS.length];
+    }
+    return passcode;
+}
+
+export async function createSessionAction(): Promise<{ session_id: string; passcode: string }> {
+    const sessionId = randomUUID();
+    const passcode = generatePasscode(6);
+    const result = await insertSession(sessionId, passcode);
+    if (!result) {
+        throw new Error('Failed to create session');
+    }
+    return { session_id: sessionId, passcode };
+}
+
+export async function getSessionByPasscodeAction(
+    passcode: string
+): Promise<{ session_id: string } | null> {
+    const session = await getSessionByPasscode(passcode);
+    return session ? { session_id: session.id } : null;
 }
 
 export async function upsertVibeProfileAction(brandId: string, brandIdentity: string) {
@@ -254,6 +295,7 @@ export async function fetchKanbanTasksAction(
     priority: 'high' | 'medium' | 'low';
     description: string;
     image_url?: string;
+    video_url?: string;
     caption?: string;
     tags?: string[];
     status: KanbanTaskStatus;
@@ -266,6 +308,7 @@ export async function fetchKanbanTasksAction(
         priority: (row.priority as 'high' | 'medium' | 'low') || 'medium',
         description: row.description || '',
         image_url: row.image_url,
+        video_url: row.video_url,
         caption: row.caption,
         tags: row.tags,
         status: (row.status as KanbanTaskStatus) || 'draft',
@@ -304,6 +347,7 @@ export async function createKanbanTaskAction(
     description: string,
     options?: {
         asset_id?: string;
+        video_asset_id?: string;
         image_url?: string;
         caption?: string;
         prompt_for_caption?: string;
@@ -314,6 +358,7 @@ export async function createKanbanTaskAction(
     await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
 
     let imageUrl = options?.image_url;
+    let videoUrl: string | undefined;
     let assetPrompt: string | undefined;
     if (options?.asset_id && !imageUrl) {
         const asset = await getBrandAssetById(brandId, options.asset_id);
@@ -322,10 +367,17 @@ export async function createKanbanTaskAction(
             assetPrompt = asset.prompt;
         }
     }
+    if (options?.video_asset_id) {
+        const shortVideo = await getShortVideoById(brandId, options.video_asset_id);
+        if (shortVideo?.video_url) {
+            videoUrl = shortVideo.video_url;
+            if (!assetPrompt) assetPrompt = shortVideo.prompt;
+        }
+    }
 
     let caption = options?.caption?.trim();
     const promptForCaption = options?.prompt_for_caption?.trim() || assetPrompt;
-    if ((!caption || caption.length < 10) && promptForCaption && (imageUrl || options?.asset_id)) {
+    if ((!caption || caption.length < 10) && promptForCaption && (imageUrl || videoUrl || options?.asset_id || options?.video_asset_id)) {
         caption = await generateSocialCaption(promptForCaption, platform);
     }
 
@@ -335,6 +387,7 @@ export async function createKanbanTaskAction(
         priority,
         description,
         image_url: imageUrl,
+        video_url: videoUrl,
         caption: caption || undefined,
         tags: options?.tags,
         status: options?.status ?? 'draft',
@@ -354,4 +407,154 @@ export async function updateKanbanTaskStatusAction(
     status: KanbanTaskStatus
 ): Promise<boolean> {
     return updateMarketingPlanStatus(brandId, taskId, status);
+}
+
+/**
+ * Deletes a kanban task from the roadmap.
+ */
+export async function deleteKanbanTaskAction(
+    brandId: string,
+    taskId: string
+): Promise<boolean> {
+    return deleteMarketingPlan(brandId, taskId);
+}
+
+// ---------------------------------------------------------------------------
+// Short-Form Video (Veo 3.1)
+// ---------------------------------------------------------------------------
+
+async function fetchImageAsBase64(imageUrl: string): Promise<{ base64: string; mimeType: string }> {
+    const res = await fetch(imageUrl);
+    if (!res.ok) throw new Error(`Failed to fetch image: ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const base64 = Buffer.from(buf).toString('base64');
+    const contentType = res.headers.get('content-type') || 'image/png';
+    const mimeType = contentType.includes('jpeg') || contentType.includes('jpg') ? 'image/jpeg' : 'image/png';
+    return { base64, mimeType };
+}
+
+export type ShortFormVideoOptions = {
+    reference_asset_ids?: string[];
+    duration_seconds?: 4 | 6 | 8;
+    platform?: 'tiktok' | 'youtube_shorts';
+};
+
+/**
+ * Starts Veo 3.1 short-form video generation. Returns job_id for polling.
+ * Video generation takes 1-3 minutes; use checkShortFormVideoStatusAction to poll.
+ */
+export async function startShortFormVideoAction(
+    prompt: string,
+    brandId: string,
+    options?: ShortFormVideoOptions
+): Promise<{ job_id: string }> {
+    const alreadyGenerating = await hasGeneratingShortVideo(brandId);
+    if (alreadyGenerating) {
+        throw new Error(
+            'A short-form video is already being generated. Please wait for it to complete before starting another.'
+        );
+    }
+
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+    if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT is required');
+    const bucket = `${projectId}.firebasestorage.app`;
+    const jobId = randomUUID();
+    const outputGcsUri = `gs://${bucket}/short-videos-temp/${brandId}/${jobId}/`;
+    const rawDuration = options?.duration_seconds ?? 6;
+    const durationSeconds = [4, 6, 8].includes(rawDuration) ? (rawDuration as 4 | 6 | 8) : 6;
+
+    const referenceImages: Array<{ image: { imageBytes: string; mimeType: string }; referenceType: VideoGenerationReferenceType }> = [];
+    if (options?.reference_asset_ids?.length) {
+        for (const assetId of options.reference_asset_ids.slice(0, 3)) {
+            const asset = await getBrandAssetById(brandId, assetId);
+            if (asset?.image_url) {
+                const { base64, mimeType } = await fetchImageAsBase64(asset.image_url);
+                referenceImages.push({
+                    image: { imageBytes: base64, mimeType },
+                    referenceType: VideoGenerationReferenceType.ASSET,
+                });
+            }
+        }
+    }
+
+    const config: {
+        aspectRatio: string;
+        durationSeconds: number;
+        outputGcsUri: string;
+        negativePrompt?: string;
+        referenceImages?: typeof referenceImages;
+    } = {
+        aspectRatio: '9:16',
+        durationSeconds,
+        outputGcsUri,
+        negativePrompt:
+            'minimal text, avoid heavy typography, no watermarks',
+    };
+    if (referenceImages.length > 0) config.referenceImages = referenceImages;
+
+    const finalPrompt = prompt;
+
+    const operation = await ai.models.generateVideos({
+        model: 'veo-3.1-generate-001',
+        prompt: finalPrompt,
+        config,
+    });
+
+    await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
+    const result = await insertShortVideo(brandId, {
+        prompt,
+        reference_asset_ids: options?.reference_asset_ids,
+        duration_seconds: durationSeconds,
+        platform: options?.platform ?? 'tiktok',
+        status: 'generating',
+        operation_name: operation.name,
+    });
+    if (!result) throw new Error('Failed to save short video job');
+    return { job_id: result.id };
+}
+
+/**
+ * Polls the status of a short-form video job. When done, returns video_url.
+ */
+export async function checkShortFormVideoStatusAction(
+    jobId: string,
+    brandId: string
+): Promise<{ status: 'generating' | 'done' | 'error'; video_url?: string; error?: string }> {
+    const doc = await getShortVideoById(brandId, jobId);
+    if (!doc) return { status: 'error', error: 'Job not found' };
+    if (doc.status === 'done' && doc.video_url) return { status: 'done', video_url: doc.video_url };
+    if (doc.status === 'error') return { status: 'error', error: 'Video generation failed' };
+
+    const operationName = doc.operation_name;
+    if (!operationName) return { status: 'error', error: 'Missing operation info' };
+
+    const opRef = new GenerateVideosOperation();
+    opRef.name = operationName;
+    const operation = await ai.operations.getVideosOperation({
+        operation: opRef,
+    });
+
+    if (!operation.done) return { status: 'generating' };
+
+    if (operation.error) {
+        await updateShortVideo(brandId, jobId, { status: 'error' });
+        return { status: 'error', error: String(operation.error?.message ?? operation.error) };
+    }
+
+    const gcsUri = operation.response?.generatedVideos?.[0]?.video?.uri;
+    if (!gcsUri) {
+        await updateShortVideo(brandId, jobId, { status: 'error' });
+        return { status: 'error', error: 'No video in response' };
+    }
+
+    const videoUrl = await createSignedUrlForGcsPath(gcsUri);
+    await updateShortVideo(brandId, jobId, { video_url: videoUrl, status: 'done' });
+    return { status: 'done', video_url: videoUrl };
+}
+
+/**
+ * Fetches short videos for a brand.
+ */
+export async function fetchShortVideosAction(brandId: string) {
+    return fetchShortVideos(brandId);
 }

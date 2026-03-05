@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
-import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   fetchVantAIgeContext,
@@ -12,13 +12,20 @@ import {
   generateBrandAssetAction,
   createKanbanTaskAction,
   updateKanbanTaskStatusAction,
+  deleteKanbanTaskAction,
   saveBrandAssetAction,
   fetchBrandAssetsAction,
   fetchKanbanTasksAction,
   getCrossSessionTrendAnalysisAction,
+  startShortFormVideoAction,
+  checkShortFormVideoStatusAction,
+  fetchShortVideosAction,
+  createSessionAction,
+  getSessionByPasscodeAction,
 } from './actions/memory';
 import { compressBase64Image } from '@/lib/compressImage';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
+import ShortsSidebar from '@/components/ShortsSidebar';
 
 // Types
 interface ToolCall {
@@ -36,6 +43,7 @@ export interface KanbanTask {
   priority: 'high' | 'medium' | 'low';
   description: string;
   image_url?: string;
+  video_url?: string;
   caption?: string;
   tags?: string[];
   status: KanbanTaskStatus;
@@ -76,6 +84,7 @@ export default function Dashboard() {
   // New state for Live Execution Bridge
   const [isToolPending, setIsToolPending] = useState(false);
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
+  const [shortVideos, setShortVideos] = useState<Array<{ id: string; prompt: string; status: 'generating' | 'done' | 'error'; videoUrl?: string }>>([]);
   const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null);
 
@@ -96,7 +105,19 @@ export default function Dashboard() {
 
   // Track events for summarization
   const sessionNotesRef = useRef<string[]>([]);
-  const defaultBrandId = 'vantaige-brand-001';
+
+  // Session management: passcode-based restore
+  type SessionPhase = 'choose' | 'new' | 'continue' | 'active';
+  const [sessionPhase, setSessionPhase] = useState<SessionPhase>('choose');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionPasscode, setSessionPasscode] = useState<string | null>(null);
+  const [continuePasscodeInput, setContinuePasscodeInput] = useState('');
+  const [continueError, setContinueError] = useState<string | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [isLookingUpSession, setIsLookingUpSession] = useState(false);
+
+  const scopeId = sessionId ?? 'vantaige-brand-001';
+
   const modelTurnCountRef = useRef(0);
   const isSetupCompleteRef = useRef(false);
   const getCanSendRef = useRef<() => boolean>(() => false);
@@ -108,14 +129,15 @@ export default function Dashboard() {
     isSetupCompleteRef.current = isSetupComplete;
   }, [isSetupComplete]);
 
-  // Load existing context on mount
+  // Load context when session is active (sessionId is set)
   useEffect(() => {
+    if (!sessionId || sessionPhase === 'choose' || sessionPhase === 'continue') return;
     const loadContext = async () => {
-      const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(defaultBrandId);
+      const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(sessionId);
       if (vibeProfile?.brand_identity) setBrandIdentity(vibeProfile.brand_identity);
       setSessionLogs(sessionLogs);
 
-      const savedAssets = await fetchBrandAssetsAction(defaultBrandId);
+      const savedAssets = await fetchBrandAssetsAction(sessionId);
       setBrandAssets(savedAssets.map(a => ({
         id: a.id,
         prompt: a.prompt,
@@ -123,14 +145,22 @@ export default function Dashboard() {
         dataUrl: a.image_url,
       })));
 
-      const savedTasks = await fetchKanbanTasksAction(defaultBrandId);
+      const savedTasks = await fetchKanbanTasksAction(sessionId);
       setKanbanTasks(savedTasks.map((t) => ({
         ...t,
         status: (t.status as KanbanTaskStatus) || 'draft',
       })));
+
+      const savedShorts = await fetchShortVideosAction(sessionId);
+      setShortVideos(savedShorts.map((v) => ({
+        id: v.id,
+        prompt: v.prompt,
+        status: v.status as 'generating' | 'done' | 'error',
+        videoUrl: v.video_url,
+      })));
     };
     loadContext();
-  }, []);
+  }, [sessionId, sessionPhase]);
 
   // Agent instructions — camelCase per Live API WebSocket (ai.google.dev/api/live). realtimeInputConfig enables VAD/turn-taking like the official audio-orb sample.
   const setupMessage = {
@@ -160,7 +190,8 @@ PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream. If the screen-share (desi
 TOOLS:
 - finalize_marketing_strategy: Set the current strategy phase.
 - generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Use a rich, brand-aware prompt. When the user has screen share or camera on, you can request assets "based on what you see" — the system will use the current frame (screen or camera, whichever they have active).
-- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the image on the platform.
+- generate_short_form_video: Call this when the user asks for a TikTok, YouTube Short, or vertical short-form video. Use reference_asset_ids to include prior brand assets (logos, products) for visual consistency. Prefer prompts focused on visuals, motion, and mood—avoid heavy text or typography in the video. Videos are 9:16 and take 1-3 minutes to generate.
+- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. For TikTok/YouTube Shorts video posts, include video_asset_id (from prior generate_short_form_video). IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the asset on the platform.
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
 - end_session: End the session when the user is done.
 
@@ -190,6 +221,20 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               },
             },
             {
+              name: 'generate_short_form_video',
+              description: 'Generates a TikTok or YouTube Short (9:16 vertical video) using Veo 3.1. Use reference_asset_ids for prior brand assets. Prefer visuals, motion, and mood over text-heavy prompts. Generation takes 1-3 minutes.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  video_prompt: { type: 'string', description: 'A detailed prompt describing the video to generate' },
+                  reference_asset_ids: { type: 'array', items: { type: 'string' }, description: 'Optional. IDs of brand assets to use as reference for visual consistency (logos, products)' },
+                  duration_seconds: { type: 'string', enum: ['4', '6', '8'], description: 'Optional. Video length in seconds. Default 6.' },
+                  platform: { type: 'string', enum: ['tiktok', 'youtube_shorts'], description: 'Optional. Target platform.' },
+                },
+                required: ['video_prompt'],
+              },
+            },
+            {
               name: 'create_kanban_task',
               description: 'Converts a brainstormed idea into a persistent task on the dashboard. MUST be called when adding something to the roadmap or plan. For social media image posts, include asset_id, caption (engaging post copy, NOT the image prompt), and tags.',
               parameters: {
@@ -208,6 +253,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     description: 'Task priority level',
                   },
                   asset_id: { type: 'string', description: 'Optional. ID of a brand asset to attach (from prior generate_brand_asset)' },
+                  video_asset_id: { type: 'string', description: 'Optional. ID of a short video to attach (from prior generate_short_form_video) for TikTok/YouTube Shorts' },
                   caption: { type: 'string', description: 'Optional. Engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual caption that would accompany the image on Instagram/TikTok.' },
                   tags: { type: 'array', items: { type: 'string' }, description: 'Optional. Hashtags or category tags for social posts' },
                   status: {
@@ -292,7 +338,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     setIsConnecting(true);
 
     // 1. Fetch Context
-    const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(defaultBrandId);
+    const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(scopeId);
     if (vibeProfile?.brand_identity) {
       setBrandIdentity(vibeProfile.brand_identity);
     }
@@ -471,9 +517,9 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
       if (sessionNotesRef.current.length >= 1) {
         setIsSummarizing(true);
-        summarizeSessionAction(defaultBrandId, sessionNotesRef.current.join('\n')).then(() => {
+        summarizeSessionAction(scopeId, sessionNotesRef.current.join('\n')).then(() => {
           setIsSummarizing(false);
-          fetchVantAIgeContext(defaultBrandId).then(data => setSessionLogs(data.sessionLogs));
+          fetchVantAIgeContext(scopeId).then(data => setSessionLogs(data.sessionLogs));
         }).catch(() => setIsSummarizing(false));
       }
     };
@@ -524,8 +570,8 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             referenceFrame = undefined;
           }
         }
-        const saved = await generateBrandAssetAction(args.image_prompt, defaultBrandId, referenceFrame);
-        const refreshed = await fetchBrandAssetsAction(defaultBrandId);
+        const saved = await generateBrandAssetAction(args.image_prompt, scopeId, referenceFrame);
+        const refreshed = await fetchBrandAssetsAction(scopeId);
         const newAssetData = refreshed.find(a => a.id === saved.id);
         setBrandAssets(prev =>
           prev.map(a => a.id === assetId
@@ -541,8 +587,53 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         sendToolResponse(id, name, { success: false, error: 'Image generation failed.' });
       }
 
+    } else if (name === 'generate_short_form_video') {
+      const alreadyGenerating = shortVideos.some(s => s.status === 'generating');
+      if (alreadyGenerating) {
+        sendToolResponse(id, name, {
+          success: false,
+          error: 'A short-form video is already being generated. Please wait for it to complete.',
+        });
+      } else {
+      const tempId = `short-${Date.now()}`;
+      const newShort: { id: string; prompt: string; status: 'generating' | 'done' | 'error'; videoUrl?: string } = {
+        id: tempId,
+        prompt: args.video_prompt,
+        status: 'generating',
+      };
+      setShortVideos(prev => [newShort, ...prev]);
+      sessionNotesRef.current.push(`Generating short-form video: ${args.video_prompt}`);
+
+      try {
+        const { job_id } = await startShortFormVideoAction(args.video_prompt, scopeId, {
+          reference_asset_ids: Array.isArray(args.reference_asset_ids) ? args.reference_asset_ids : undefined,
+          duration_seconds: ['4', '6', '8'].includes(String(args.duration_seconds)) ? parseInt(String(args.duration_seconds), 10) as 4 | 6 | 8 : undefined,
+          platform: args.platform === 'tiktok' || args.platform === 'youtube_shorts' ? args.platform : undefined,
+        });
+        setShortVideos(prev => prev.map(s => s.id === tempId ? { ...s, id: job_id } : s));
+
+        const poll = async () => {
+          const result = await checkShortFormVideoStatusAction(job_id, scopeId);
+          if (result.status === 'done' && result.video_url) {
+            setShortVideos(prev => prev.map(s => s.id === job_id ? { ...s, status: 'done' as const, videoUrl: result.video_url } : s));
+            sendToolResponse(id, name, { success: true, job_id, video_url: result.video_url, message: 'Short-form video generated. Check the Shorts section.' });
+          } else if (result.status === 'error') {
+            setShortVideos(prev => prev.map(s => s.id === job_id ? { ...s, status: 'error' as const } : s));
+            sendToolResponse(id, name, { success: false, error: result.error ?? 'Video generation failed.' });
+          } else {
+            setTimeout(poll, 15000);
+          }
+        };
+        setTimeout(poll, 15000);
+      } catch (err) {
+        console.error('Short video start failed:', err);
+        setShortVideos(prev => prev.map(s => s.id === tempId ? { ...s, status: 'error' as const } : s));
+        sendToolResponse(id, name, { success: false, error: 'Failed to start video generation.' });
+      }
+      }
+
     } else if (name === 'create_kanban_task') {
-      const { title, platform, priority, description, asset_id, caption, tags, status } = args;
+      const { title, platform, priority, description, asset_id, video_asset_id, caption, tags, status } = args;
       const tempId = `task-${Date.now()}`;
       const optimisticTask: KanbanTask = {
         id: tempId,
@@ -556,14 +647,15 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       sessionNotesRef.current.push(`Added to roadmap: ${title} (${platform})`);
 
       try {
-        const saved = await createKanbanTaskAction(defaultBrandId, title, platform, priority, description, {
+        const saved = await createKanbanTaskAction(scopeId, title, platform, priority, description, {
           asset_id,
+          video_asset_id,
           caption,
           tags: Array.isArray(tags) ? tags : undefined,
           status: status as KanbanTaskStatus | undefined,
         });
         setKanbanTasks(prev =>
-          prev.map(t => t.id === tempId ? { ...t, id: saved.id || tempId, image_url: saved.image_url, caption: saved.caption, tags: saved.tags } : t)
+          prev.map(t => t.id === tempId ? { ...t, id: saved.id || tempId, image_url: saved.image_url, video_url: saved.video_url, caption: saved.caption, tags: saved.tags } : t)
         );
         sendToolResponse(id, name, { success: true, task_id: saved.id, message: `Task "${title}" added to your roadmap.` });
       } catch {
@@ -578,7 +670,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       setTimeout(() => setIsPulsing(false), 2000);
 
       try {
-        await upsertVibeProfileAction(defaultBrandId, newVibe);
+        await upsertVibeProfileAction(scopeId, newVibe);
         sendToolResponse(id, name, { success: true, saved: newVibe });
       } catch {
         sendToolResponse(id, name, { success: false, error: 'Failed DB save' });
@@ -596,8 +688,8 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       prev.map(a => a.id === asset.id ? { ...a, status: 'generating' as const, dataUrl: undefined } : a)
     );
     try {
-      const saved = await generateBrandAssetAction(asset.prompt, defaultBrandId);
-      const refreshed = await fetchBrandAssetsAction(defaultBrandId);
+      const saved = await generateBrandAssetAction(asset.prompt, scopeId);
+      const refreshed = await fetchBrandAssetsAction(scopeId);
       const newAssetData = refreshed.find(a => a.id === saved.id);
       setBrandAssets(prev =>
         prev.map(a => a.id === asset.id ? { ...a, id: saved.id, status: 'done' as const, dataUrl: newAssetData?.image_url } : a)
@@ -609,6 +701,8 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       );
     }
   };
+
+  const [launchPackTab, setLaunchPackTab] = useState<'images' | 'shorts'>('images');
 
   const handleAddToPlan = async (asset: BrandAsset) => {
     const tempId = `task-asset-${Date.now()}`;
@@ -625,7 +719,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     setKanbanTasks(prev => [task, ...prev]);
     try {
       const saved = await createKanbanTaskAction(
-        defaultBrandId,
+        scopeId,
         `Brand Asset: ${asset.prompt.slice(0, 40)}`,
         'Multi-channel',
         'medium',
@@ -640,8 +734,37 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
   };
 
+  const handleAddShortToPlan = async (short: { id: string; prompt: string; status: string; videoUrl?: string }) => {
+    const tempId = `task-short-${Date.now()}`;
+    const task: KanbanTask = {
+      id: tempId,
+      title: `Short: ${short.prompt.slice(0, 40)}…`,
+      platform: 'TikTok',
+      priority: 'medium',
+      description: `Short-form video: ${short.prompt}`,
+      video_url: short.videoUrl,
+      status: 'draft',
+    };
+    setKanbanTasks((prev) => [task, ...prev]);
+    try {
+      const saved = await createKanbanTaskAction(
+        scopeId,
+        `Short: ${short.prompt.slice(0, 40)}`,
+        'TikTok',
+        'medium',
+        `Short-form video: ${short.prompt}`,
+        { video_asset_id: short.id, status: 'draft' }
+      );
+      setKanbanTasks((prev) =>
+        prev.map((t) => (t.id === tempId ? { ...t, id: saved.id || tempId, video_url: saved.video_url } : t))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleStatusChange = async (taskId: string, newStatus: KanbanTaskStatus) => {
-    const ok = await updateKanbanTaskStatusAction(defaultBrandId, taskId, newStatus);
+    const ok = await updateKanbanTaskStatusAction(scopeId, taskId, newStatus);
     if (ok) {
       setKanbanTasks(prev =>
         prev.map(t => (t.id === taskId ? { ...t, status: newStatus } : t))
@@ -651,6 +774,137 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       }
     }
   };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Delete this roadmap task? This cannot be undone.')) return;
+    const ok = await deleteKanbanTaskAction(scopeId, taskId);
+    if (ok) {
+      setKanbanTasks(prev => prev.filter(t => t.id !== taskId));
+      setSelectedTask(null);
+    }
+  };
+
+  const handleNewSession = async () => {
+    setIsCreatingSession(true);
+    try {
+      const { session_id, passcode } = await createSessionAction();
+      setSessionId(session_id);
+      setSessionPasscode(passcode);
+      setSessionPhase('new');
+    } catch (e) {
+      console.error('Failed to create session:', e);
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
+
+  const handleStartSession = () => {
+    setSessionPhase('active');
+  };
+
+  const handleContinueSession = async () => {
+    const code = continuePasscodeInput.trim();
+    if (!code) return;
+    setIsLookingUpSession(true);
+    setContinueError(null);
+    try {
+      const result = await getSessionByPasscodeAction(code);
+      if (result) {
+        setSessionId(result.session_id);
+        setSessionPhase('active');
+        setContinuePasscodeInput('');
+      } else {
+        setContinueError('Invalid passcode');
+      }
+    } catch (e) {
+      setContinueError('Failed to look up session');
+    } finally {
+      setIsLookingUpSession(false);
+    }
+  };
+
+  // Session choice / pre-connect UI
+  if (sessionPhase === 'choose' || sessionPhase === 'new' || sessionPhase === 'continue') {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 selection:bg-indigo-500/30 flex flex-col items-center justify-center">
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">vantAIge</h1>
+        <p className="text-neutral-400 text-sm mb-10">Multimodal Marketing Director</p>
+
+        {sessionPhase === 'choose' && (
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button
+              onClick={handleNewSession}
+              disabled={isCreatingSession}
+              className="px-8 py-4 rounded-2xl bg-white text-black font-medium hover:bg-neutral-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isCreatingSession ? <Loader2 size={20} className="animate-spin" /> : <Play size={20} />}
+              New Session
+            </button>
+            <button
+              onClick={() => setSessionPhase('continue')}
+              className="px-8 py-4 rounded-2xl bg-neutral-800 border border-neutral-700 text-white font-medium hover:bg-neutral-700 transition-all"
+            >
+              Continue Session
+            </button>
+          </div>
+        )}
+
+        {sessionPhase === 'new' && sessionPasscode && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-md text-center"
+          >
+            <p className="text-neutral-400 mb-2">Your session passcode</p>
+            <p className="text-2xl font-mono font-bold tracking-widest text-indigo-300 mb-4">{sessionPasscode}</p>
+            <p className="text-xs text-neutral-500 mb-6">Save this to restore your session later.</p>
+            <button
+              onClick={handleStartSession}
+              className="px-8 py-3 rounded-full bg-indigo-500 text-white font-medium hover:bg-indigo-600 transition-all"
+            >
+              Start Session
+            </button>
+          </motion.div>
+        )}
+
+        {sessionPhase === 'continue' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-md"
+          >
+            <p className="text-neutral-400 mb-3">Enter your passcode</p>
+            <input
+              type="text"
+              value={continuePasscodeInput}
+              onChange={(e) => setContinuePasscodeInput(e.target.value.toUpperCase().slice(0, 6))}
+              placeholder="e.g. A1B2C3"
+              maxLength={6}
+              className="w-full px-4 py-3 rounded-xl bg-neutral-950 border border-neutral-700 text-center font-mono text-lg tracking-widest focus:outline-none focus:border-indigo-500 mb-3"
+              onKeyDown={(e) => e.key === 'Enter' && handleContinueSession()}
+              autoFocus
+            />
+            {continueError && <p className="text-rose-400 text-sm mb-3">{continueError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleContinueSession}
+                disabled={isLookingUpSession}
+                className="flex-1 px-4 py-3 rounded-full bg-indigo-500 text-white font-medium hover:bg-indigo-600 transition-all disabled:opacity-50"
+              >
+                {isLookingUpSession ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Continue'}
+              </button>
+              <button
+                onClick={() => { setSessionPhase('choose'); setContinueError(null); }}
+                className="px-4 py-3 rounded-full bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
+              >
+                Back
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 selection:bg-indigo-500/30">
@@ -794,7 +1048,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                   setIsTrendLoading(true);
                   setTrendAnalysis(null);
                   try {
-                    const analysis = await getCrossSessionTrendAnalysisAction(defaultBrandId);
+                    const analysis = await getCrossSessionTrendAnalysisAction(scopeId);
                     setTrendAnalysis(analysis);
                   } catch {
                     setTrendAnalysis('Failed to load trend analysis.');
@@ -948,9 +1202,37 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           </div>
         </section>
 
-        {/* Pane 3: Launch Pack Sidebar */}
+        {/* Pane 3: Launch Pack Sidebar (Images + Shorts) */}
         <section className="col-span-12 md:col-span-6 lg:col-span-4 h-full flex flex-col">
-          <LaunchPackSidebar assets={brandAssets} onAddToPlan={handleAddToPlan} onRegenerate={handleRegenerate} />
+          <div className="flex gap-1 mb-3">
+            <button
+              type="button"
+              onClick={() => setLaunchPackTab('images')}
+              className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-colors ${
+                launchPackTab === 'images' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-neutral-800/50 text-neutral-400 hover:text-neutral-200'
+              }`}
+            >
+              Images
+            </button>
+            <button
+              type="button"
+              onClick={() => setLaunchPackTab('shorts')}
+              className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-colors ${
+                launchPackTab === 'shorts' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-neutral-800/50 text-neutral-400 hover:text-neutral-200'
+              }`}
+            >
+              Shorts
+            </button>
+          </div>
+          {launchPackTab === 'images' && (
+            <LaunchPackSidebar assets={brandAssets} onAddToPlan={handleAddToPlan} onRegenerate={handleRegenerate} />
+          )}
+          {launchPackTab === 'shorts' && (
+            <ShortsSidebar
+              shorts={shortVideos}
+              onAddToPlan={handleAddShortToPlan}
+            />
+          )}
         </section>
       </main>
 
@@ -1032,6 +1314,20 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     </div>
                   </div>
                 )}
+                {selectedTask.video_url && (
+                  <div>
+                    <h4 className="text-sm font-medium text-neutral-300 mb-2">Video</h4>
+                    <div className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950">
+                      <video
+                        src={selectedTask.video_url}
+                        controls
+                        muted
+                        playsInline
+                        className="w-full aspect-video object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
                 {selectedTask.caption && (
                   <div>
                     <h4 className="text-sm font-medium text-neutral-300 mb-1">Caption</h4>
@@ -1050,6 +1346,16 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     </div>
                   </div>
                 )}
+                <div className="pt-4 mt-4 border-t border-neutral-800">
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteTask(selectedTask.id)}
+                    className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-sm font-medium text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                    Delete Task
+                  </button>
+                </div>
               </div>
             </motion.div>
           </>

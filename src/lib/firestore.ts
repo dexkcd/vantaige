@@ -91,6 +91,21 @@ export interface BrandAsset {
     created_at: string;
 }
 
+export type ShortVideoStatus = 'generating' | 'done' | 'error';
+
+export interface ShortVideo {
+    id: string;
+    brand_id: string;
+    prompt: string;
+    video_url?: string;
+    reference_asset_ids?: string[];
+    duration_seconds?: number;
+    platform?: string;
+    status: ShortVideoStatus;
+    operation_name?: string;
+    created_at: string;
+}
+
 export type MarketingPlanStatus = 'draft' | 'pending' | 'in_progress' | 'done';
 
 export interface MarketingPlan {
@@ -101,9 +116,16 @@ export interface MarketingPlan {
     priority?: 'high' | 'medium' | 'low';
     description?: string;
     image_url?: string;
+    video_url?: string;
     caption?: string;
     tags?: string[];
     status: MarketingPlanStatus;
+    created_at: string;
+}
+
+export interface Session {
+    id: string;
+    passcode: string;
     created_at: string;
 }
 
@@ -227,6 +249,54 @@ export async function fetchSessionLogs(
 }
 
 // ---------------------------------------------------------------------------
+// Sessions (passcode-based restore)
+// ---------------------------------------------------------------------------
+
+export async function insertSession(
+    sessionId: string,
+    passcode: string
+): Promise<Session | null> {
+    try {
+        const ref = db.collection('sessions').doc(sessionId);
+        await ref.set({
+            passcode,
+            created_at: FieldValue.serverTimestamp(),
+        });
+        const doc = await ref.get();
+        const d = doc.data()!;
+        return {
+            id: doc.id,
+            passcode: d.passcode as string,
+            created_at: toIsoString(d.created_at as Timestamp) ?? '',
+        };
+    } catch (error) {
+        logFirestoreError('creating session', error);
+        return null;
+    }
+}
+
+export async function getSessionByPasscode(passcode: string): Promise<Session | null> {
+    try {
+        const snap = await db
+            .collection('sessions')
+            .where('passcode', '==', passcode.trim())
+            .limit(1)
+            .get();
+        if (snap.empty || !snap.docs?.length) return null;
+        const doc = snap.docs[0];
+        const d = doc.data();
+        return {
+            id: doc.id,
+            passcode: d.passcode as string,
+            created_at: toIsoString(d.created_at as Timestamp) ?? '',
+        };
+    } catch (error) {
+        logFirestoreError('looking up session by passcode', error);
+        return null;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Marketing Plans (Kanban)
 // ---------------------------------------------------------------------------
 
@@ -247,6 +317,7 @@ export async function fetchMarketingPlans(brandId: string): Promise<MarketingPla
                 priority: (d.priority as 'high' | 'medium' | 'low') ?? undefined,
                 description: d.description,
                 image_url: d.image_url,
+                video_url: d.video_url,
                 caption: d.caption,
                 tags: d.tags as string[] | undefined,
                 status: (d.status as MarketingPlanStatus) ?? 'draft',
@@ -267,6 +338,7 @@ export async function insertMarketingPlan(
         priority: 'high' | 'medium' | 'low';
         description: string;
         image_url?: string;
+        video_url?: string;
         caption?: string;
         tags?: string[];
         status?: MarketingPlanStatus;
@@ -275,14 +347,15 @@ export async function insertMarketingPlan(
     try {
         const payload: Record<string, unknown> = {
             brand_id: brandId,
-            title: data.title,
-            platform: data.platform,
-            priority: data.priority,
-            description: data.description,
+            title: data.title ?? '',
+            platform: data.platform ?? 'Multi-channel',
+            priority: data.priority ?? 'medium',
+            description: data.description ?? '',
             status: data.status ?? 'draft',
             created_at: FieldValue.serverTimestamp(),
         };
         if (data.image_url != null) payload.image_url = data.image_url;
+        if (data.video_url != null) payload.video_url = data.video_url;
         if (data.caption != null) payload.caption = data.caption;
         if (data.tags != null) payload.tags = data.tags;
 
@@ -297,6 +370,7 @@ export async function insertMarketingPlan(
             priority: (d.priority as 'high' | 'medium' | 'low') ?? undefined,
             description: d.description,
             image_url: d.image_url,
+            video_url: d.video_url,
             caption: d.caption,
             tags: d.tags as string[] | undefined,
             status: (d.status as MarketingPlanStatus) ?? 'draft',
@@ -323,6 +397,24 @@ export async function updateMarketingPlanStatus(
         return true;
     } catch (error) {
         logFirestoreError('updating marketing plan status', error);
+        return false;
+    }
+}
+
+export async function deleteMarketingPlan(
+    brandId: string,
+    planId: string
+): Promise<boolean> {
+    try {
+        const ref = db.collection('marketing_plans').doc(planId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        await ref.delete();
+        return true;
+    } catch (error) {
+        logFirestoreError('deleting marketing plan', error);
         return false;
     }
 }
@@ -395,6 +487,137 @@ export async function fetchBrandAssets(brandId: string): Promise<BrandAsset[]> {
         });
     } catch (error) {
         logFirestoreError('fetching brand assets', error);
+        return [];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Short Videos
+// ---------------------------------------------------------------------------
+
+export async function getShortVideoById(
+    brandId: string,
+    videoId: string
+): Promise<ShortVideo | null> {
+    try {
+        const doc = await db.collection('short_videos').doc(videoId).get();
+        if (!doc.exists) return null;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return null;
+        return {
+            id: doc.id,
+            brand_id: d.brand_id,
+            prompt: d.prompt ?? '',
+            video_url: d.video_url,
+            reference_asset_ids: d.reference_asset_ids as string[] | undefined,
+            duration_seconds: d.duration_seconds,
+            platform: d.platform,
+            status: (d.status as ShortVideoStatus) ?? 'generating',
+            operation_name: d.operation_name,
+            created_at: toIsoString(d.created_at as Timestamp) ?? '',
+        };
+    } catch (error) {
+        logFirestoreError('fetching short video by id', error);
+        return null;
+    }
+}
+
+export async function insertShortVideo(
+    brandId: string,
+    data: {
+        prompt: string;
+        reference_asset_ids?: string[];
+        duration_seconds?: number;
+        platform?: string;
+        status: ShortVideoStatus;
+        operation_name?: string;
+    }
+): Promise<{ id: string } | null> {
+    try {
+        const ref = await db.collection('short_videos').add({
+            brand_id: brandId,
+            prompt: data.prompt,
+            reference_asset_ids: data.reference_asset_ids ?? [],
+            duration_seconds: data.duration_seconds ?? 6,
+            platform: data.platform ?? 'tiktok',
+            status: data.status,
+            operation_name: data.operation_name,
+            created_at: FieldValue.serverTimestamp(),
+        });
+        return { id: ref.id };
+    } catch (error) {
+        logFirestoreError('saving short video', error);
+        return null;
+    }
+}
+
+export async function updateShortVideo(
+    brandId: string,
+    videoId: string,
+    updates: Partial<Pick<ShortVideo, 'video_url' | 'status'>>
+): Promise<boolean> {
+    try {
+        const ref = db.collection('short_videos').doc(videoId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        const payload: Record<string, unknown> = {};
+        if (updates.video_url != null) payload.video_url = updates.video_url;
+        if (updates.status != null) payload.status = updates.status;
+        if (Object.keys(payload).length > 0) {
+            await ref.update(payload);
+        }
+        return true;
+    } catch (error) {
+        logFirestoreError('updating short video', error);
+        return false;
+    }
+}
+
+/**
+ * Returns true if this brand already has a short video with status 'generating'.
+ * Used to enforce one-at-a-time generation.
+ */
+export async function hasGeneratingShortVideo(brandId: string): Promise<boolean> {
+    try {
+        const snap = await db
+            .collection('short_videos')
+            .where('brand_id', '==', brandId)
+            .orderBy('created_at', 'desc')
+            .limit(20)
+            .get();
+        return snap.docs.some((doc) => (doc.data().status ?? '') === 'generating');
+    } catch (error) {
+        logFirestoreError('checking generating short video', error);
+        return false; // Allow generation if check fails to avoid blocking
+    }
+}
+
+export async function fetchShortVideos(brandId: string): Promise<ShortVideo[]> {
+    try {
+        const snap = await db
+            .collection('short_videos')
+            .where('brand_id', '==', brandId)
+            .orderBy('created_at', 'desc')
+            .get();
+        return snap.docs.map((doc) => {
+            const d = doc.data();
+            return {
+                id: doc.id,
+                brand_id: d.brand_id,
+                prompt: d.prompt ?? '',
+                video_url: d.video_url,
+                reference_asset_ids: d.reference_asset_ids as string[] | undefined,
+                duration_seconds: d.duration_seconds,
+                platform: d.platform,
+                status: (d.status as ShortVideoStatus) ?? 'generating',
+                operation_name: d.operation_name,
+                created_at: toIsoString(d.created_at as Timestamp) ?? '',
+            };
+        });
+    } catch (error) {
+        logFirestoreError('fetching short videos', error);
         return [];
     }
 }

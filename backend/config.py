@@ -79,15 +79,29 @@ def setup_to_live_config(setup: dict) -> LiveConnectConfig:
     return LiveConnectConfig(**config_kw)
 
 
+def _normalize_schema_for_sdk(params: dict) -> dict:
+    """Ensure schema enums are strings (SDK/Pydantic requirement)."""
+    if not params or not isinstance(params, dict):
+        return params or {"type": "object", "properties": {}}
+    props = params.get("properties") or {}
+    out_props = {}
+    for k, v in props.items():
+        if isinstance(v, dict) and "enum" in v:
+            out_props[k] = {**v, "enum": [str(x) for x in v["enum"]]}
+        else:
+            out_props[k] = v
+    return {**params, "properties": out_props}
+
+
 def _convert_function_declarations(decls: list) -> list:
     """Convert camelCase function declarations to snake_case for SDK."""
     out = []
     for d in decls:
+        params = d.get("parameters") or {"type": "object", "properties": {}}
         fd = {
             "name": d.get("name"),
             "description": d.get("description", ""),
-            "parameters": d.get("parameters") or {"type": "object", "properties": {}},
+            "parameters": _normalize_schema_for_sdk(params),
         }
-        # Keep parameters as-is (nested type/properties/required)
         out.append(fd)
     return out

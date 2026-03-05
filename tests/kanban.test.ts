@@ -2,13 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockInsertMarketingPlan = vi.fn();
 const mockUpdateMarketingPlanStatus = vi.fn();
+const mockDeleteMarketingPlan = vi.fn();
 const mockGetBrandAssetById = vi.fn();
+const mockGetShortVideoById = vi.fn();
 const mockUpsertVibeProfile = vi.fn();
 
 vi.mock('@/lib/firestore', () => ({
     insertMarketingPlan: (...args: unknown[]) => mockInsertMarketingPlan(...args),
     updateMarketingPlanStatus: (...args: unknown[]) => mockUpdateMarketingPlanStatus(...args),
+    deleteMarketingPlan: (...args: unknown[]) => mockDeleteMarketingPlan(...args),
     getBrandAssetById: (...args: unknown[]) => mockGetBrandAssetById(...args),
+    getShortVideoById: (...args: unknown[]) => mockGetShortVideoById(...args),
     upsertVibeProfile: (...args: unknown[]) => mockUpsertVibeProfile(...args),
 }));
 
@@ -19,7 +23,7 @@ vi.mock('@/lib/storage', () => ({
     resolveImageUrlForFirestore: vi.fn((url: string) => Promise.resolve(url)),
 }));
 
-import { createKanbanTaskAction, updateKanbanTaskStatusAction } from '@/app/actions/memory';
+import { createKanbanTaskAction, updateKanbanTaskStatusAction, deleteKanbanTaskAction } from '@/app/actions/memory';
 
 describe('Kanban task actions', () => {
     const brandId = 'test-brand-001';
@@ -142,6 +146,42 @@ describe('Kanban task actions', () => {
             }));
         });
 
+        it('resolves video_asset_id to video_url when provided', async () => {
+            mockGetShortVideoById.mockResolvedValue({
+                id: 'short-1',
+                brand_id: brandId,
+                video_url: 'https://storage.example.com/short.mp4',
+                prompt: 'Generated short video',
+                status: 'done',
+            });
+            mockInsertMarketingPlan.mockResolvedValue({
+                id: 'task-4',
+                brand_id: brandId,
+                title: 'TikTok Short',
+                platform: 'TikTok',
+                priority: 'high',
+                description: 'Short-form video post',
+                video_url: 'https://storage.example.com/short.mp4',
+                status: 'draft',
+                created_at: new Date().toISOString(),
+            });
+
+            await createKanbanTaskAction(
+                brandId,
+                'TikTok Short',
+                'TikTok',
+                'high',
+                'Short-form video post',
+                { video_asset_id: 'short-1', caption: 'Check out our new short!' }
+            );
+
+            expect(mockGetShortVideoById).toHaveBeenCalledWith(brandId, 'short-1');
+            expect(mockInsertMarketingPlan).toHaveBeenCalledWith(brandId, expect.objectContaining({
+                video_url: 'https://storage.example.com/short.mp4',
+                caption: 'Check out our new short!',
+            }));
+        });
+
         it('throws when insertMarketingPlan returns null', async () => {
             mockInsertMarketingPlan.mockResolvedValue(null);
 
@@ -177,6 +217,25 @@ describe('Kanban task actions', () => {
                 'task-nonexistent',
                 'done'
             );
+
+            expect(result).toBe(false);
+        });
+    });
+
+    describe('deleteKanbanTaskAction', () => {
+        it('deletes task and returns true on success', async () => {
+            mockDeleteMarketingPlan.mockResolvedValue(true);
+
+            const result = await deleteKanbanTaskAction(brandId, 'task-1');
+
+            expect(mockDeleteMarketingPlan).toHaveBeenCalledWith(brandId, 'task-1');
+            expect(result).toBe(true);
+        });
+
+        it('returns false when delete fails', async () => {
+            mockDeleteMarketingPlan.mockResolvedValue(false);
+
+            const result = await deleteKanbanTaskAction(brandId, 'task-nonexistent');
 
             expect(result).toBe(false);
         });

@@ -22,10 +22,19 @@ If you see `Error 5 NOT_FOUND`, the Firestore database does not exist yet. Creat
 
 | Collection        | Document ID          | Purpose                                  |
 |-------------------|----------------------|------------------------------------------|
-| `vibe_profiles`   | `brand_id` (e.g. `default`) | Brand identity / vibe profile per brand |
-| `session_logs`    | Auto-generated       | Session summaries per brand              |
-| `marketing_plans` | Auto-generated       | Kanban tasks / marketing plans           |
+| `sessions`       | `session_id` (UUID)   | Passcode-based session lookup; maps passcode to session scope |
+| `vibe_profiles`   | `brand_id` (e.g. `session_id`) | Brand identity / vibe profile per session |
+| `session_logs`    | Auto-generated       | Session summaries (scoped by `brand_id` = session_id) |
+| `marketing_plans` | Auto-generated       | Kanban tasks / marketing plans (scoped by session) |
 | `brand_assets`    | Auto-generated       | Generated images + prompts               |
+| `short_videos`    | Auto-generated       | Short-form videos (TikTok/YouTube Shorts) |
+
+### Session Management
+
+Sessions use a passcode (6 alphanumeric characters) for restore:
+
+1. **New Session**: Creates a session doc with `{ passcode, created_at }`; returns `session_id` and `passcode`. All documents (vibe profiles, session logs, marketing plans, brand assets, short videos) are owned by `session_id`.
+2. **Continue Session**: User enters passcode; lookup `sessions.where('passcode', '==', input)` returns the session doc; `session_id` (doc id) is used as the scope for all data.
 
 ## Authentication
 
