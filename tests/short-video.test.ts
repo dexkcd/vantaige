@@ -7,6 +7,7 @@ const mockGetBrandAssetById = vi.fn();
 const mockUpsertVibeProfile = vi.fn();
 const mockHasGeneratingShortVideo = vi.fn();
 const mockCreateSignedUrlForGcsPath = vi.fn();
+const mockGetProxyUrlForGcsPath = vi.fn();
 
 vi.mock('@/lib/firestore', () => ({
     insertShortVideo: (...args: unknown[]) => mockInsertShortVideo(...args),
@@ -19,6 +20,7 @@ vi.mock('@/lib/firestore', () => ({
 
 vi.mock('@/lib/storage', () => ({
     createSignedUrlForGcsPath: (...args: unknown[]) => mockCreateSignedUrlForGcsPath(...args),
+    getProxyUrlForGcsPath: (...args: unknown[]) => mockGetProxyUrlForGcsPath(...args),
 }));
 
 const { mockGenerateVideos, mockGetVideosOperation } = vi.hoisted(() => ({
@@ -181,14 +183,14 @@ describe('Short-form video actions', () => {
                     }],
                 },
             });
-            mockCreateSignedUrlForGcsPath.mockResolvedValue('https://signed.example.com/video.mp4');
+            mockGetProxyUrlForGcsPath.mockReturnValue('https://signed.example.com/video.mp4');
             mockUpdateShortVideo.mockResolvedValue(true);
 
             const result = await checkShortFormVideoStatusAction('job-1', brandId);
 
             expect(result.status).toBe('done');
             expect(result.video_url).toBe('https://signed.example.com/video.mp4');
-            expect(mockCreateSignedUrlForGcsPath).toHaveBeenCalledWith('gs://bucket/path/sample_0.mp4');
+            expect(mockGetProxyUrlForGcsPath).toHaveBeenCalledWith('gs://bucket/path/sample_0.mp4');
             expect(mockUpdateShortVideo).toHaveBeenCalledWith(brandId, 'job-1', {
                 video_url: 'https://signed.example.com/video.mp4',
                 status: 'done',

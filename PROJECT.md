@@ -38,6 +38,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] Kanban Bridge: Turning ideas into "Draft Plans" (AI `create_kanban_task` tool + Strategy Flow UI)
 - [x] Roadmap Task Detail View: Clickable cards with modal; image posts (image, caption, tags); video posts (TikTok/YouTube Shorts via `video_asset_id`); status workflow (draft, pending, in progress, done)
 - [x] **Session Management**: New session creates passcode; Continue session restores by passcode. Documents owned by session.
+- [x] **Mobile-first Studio shell**: Responsive header/actions, flexible panel heights, and small-screen-safe debug/modal behavior.
 - [ ] **Next**: The "Recall" Button: Restarting sessions with specific mission context
 
 ---
@@ -67,6 +68,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - `backend/main.py`: WebSocket bridge (Live API session per client); `backend/config.py`: setup → SDK config mapping
 - `server.js`: HTTP server for Next.js (no WebSocket; use Python backend for Live API)
 - `src/app/page.tsx`: The main "Studio" UI & stream management
+- `src/lib/branding.ts`: Shared app identity constants (name, title, tagline, description)
 - `src/app/actions/memory.ts`: Server actions (Imagen, Veo 3.1, Firestore, summarization)
 - `src/lib/firestore.ts`: Database client & Firestore collections (sessions, vibe_profiles, session_logs, brand_assets, short_videos, marketing_plans)
 - `src/lib/storage.ts`: Brand asset images & signed URLs for Veo video output

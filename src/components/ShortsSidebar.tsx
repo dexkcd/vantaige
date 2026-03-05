@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, PlusCircle, Trash2, Video } from 'lucide-react';
+import { APP_NAME } from '@/lib/branding';
 
 export interface ShortVideoAsset {
     id: string;
@@ -25,7 +26,7 @@ export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, error, on
     };
 
     return (
-        <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
+        <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 sm:p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
             <h2 className="text-xl font-semibold mb-1 flex justify-between items-center">
                 Shorts
                 <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">
@@ -62,7 +63,7 @@ export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, error, on
                             <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-neutral-700 mb-4 flex items-center justify-center">
                                 <Video size={24} className="text-neutral-600" />
                             </div>
-                            <p className="text-sm">vantAIge will generate short-form videos here during your session.</p>
+                            <p className="text-sm">{APP_NAME} will generate short-form videos here during your session.</p>
                         </motion.div>
                     ) : (
                         shorts.map((short) => (
