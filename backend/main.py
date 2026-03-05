@@ -302,7 +302,7 @@ async def websocket_endpoint(ws: WebSocket):
             # Send greeting to Gemini immediately so it replies before mic chunks flood the stream
             try:
                 await session.send_client_content(
-                    turns=[{"role": "user", "parts": [{"text": "Hello, introduce yourself briefly."}]}],
+                    turns=[{"role": "user", "parts": [{"text": "Hello, introduce yourself briefly and mention that the user can share their screen or turn on their camera to show you designs, mockups, or physical products."}]}],
                     turn_complete=True,
                 )
                 logger.info("Backend: sent kick-off greeting to Gemini")

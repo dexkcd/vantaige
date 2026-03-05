@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, PlusCircle, Video } from 'lucide-react';
+import { Download, PlusCircle, Trash2, Video } from 'lucide-react';
 
 export interface ShortVideoAsset {
     id: string;
@@ -13,9 +13,12 @@ export interface ShortVideoAsset {
 interface ShortsSidebarProps {
     shorts: ShortVideoAsset[];
     onAddToPlan: (short: ShortVideoAsset) => void;
+    onDelete?: (short: ShortVideoAsset) => void;
+    error?: string | null;
+    onDismissError?: () => void;
 }
 
-export default function ShortsSidebar({ shorts, onAddToPlan }: ShortsSidebarProps) {
+export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, error, onDismissError }: ShortsSidebarProps) {
     const handleDownload = (short: ShortVideoAsset) => {
         if (!short.videoUrl) return;
         window.open(short.videoUrl, '_blank', 'noopener,noreferrer');
@@ -30,6 +33,22 @@ export default function ShortsSidebar({ shorts, onAddToPlan }: ShortsSidebarProp
                 </span>
             </h2>
             <p className="text-xs text-neutral-500 mb-5">TikTok & YouTube Shorts (9:16)</p>
+
+            {error && (
+                <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2">
+                    <span className="text-rose-400 text-xs flex-1">{error}</span>
+                    {onDismissError && (
+                        <button
+                            type="button"
+                            onClick={onDismissError}
+                            className="text-rose-400/70 hover:text-rose-300 text-xs shrink-0"
+                            aria-label="Dismiss"
+                        >
+                            Dismiss
+                        </button>
+                    )}
+                </div>
+            )}
 
             <div className="flex-1 overflow-y-auto pr-1 space-y-4 custom-scrollbar">
                 <AnimatePresence mode="popLayout">
@@ -58,7 +77,7 @@ export default function ShortsSidebar({ shorts, onAddToPlan }: ShortsSidebarProp
                             >
                                 {/* Video area */}
                                 {short.status === 'generating' ? (
-                                    <div className="aspect-[9/16] max-h-64 w-full mx-auto bg-neutral-900 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
+                                    <div className="aspect-[9/16] max-h-80 w-full mx-auto bg-neutral-900 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
                                         <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-neutral-700/20 to-transparent" />
                                         <div className="relative z-10 flex flex-col items-center gap-2">
                                             <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
@@ -67,14 +86,14 @@ export default function ShortsSidebar({ shorts, onAddToPlan }: ShortsSidebarProp
                                         </div>
                                     </div>
                                 ) : short.status === 'error' ? (
-                                    <div className="aspect-[9/16] max-h-64 w-full mx-auto bg-neutral-900 flex items-center justify-center">
+                                    <div className="aspect-[9/16] max-h-80 w-full mx-auto bg-neutral-900 flex items-center justify-center">
                                         <span className="text-xs text-rose-400">Generation failed</span>
                                     </div>
                                 ) : (
-                                    <div className="aspect-[9/16] max-h-64 w-full mx-auto relative group overflow-hidden">
+                                    <div className="aspect-[9/16] w-full max-h-80 mx-auto relative group overflow-hidden bg-black">
                                         <video
                                             src={short.videoUrl}
-                                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
+                                            className="w-full h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity duration-300"
                                             controls
                                             muted
                                             playsInline
@@ -89,28 +108,44 @@ export default function ShortsSidebar({ shorts, onAddToPlan }: ShortsSidebarProp
                                     <p className="text-xs text-neutral-400 truncate mb-3" title={short.prompt}>
                                         {short.prompt}
                                     </p>
-                                    {(short.status === 'done' || short.status === 'error') && (
-                                        <div className="flex gap-2">
-                                            {short.status === 'done' && (
-                                                <>
-                                                    <button
-                                                        onClick={() => handleDownload(short)}
-                                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs transition-colors"
-                                                    >
-                                                        <Download size={12} />
-                                                        Download
-                                                    </button>
-                                                    <button
-                                                        onClick={() => onAddToPlan(short)}
-                                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs transition-colors border border-indigo-500/30"
-                                                    >
-                                                        <PlusCircle size={12} />
-                                                        Add to Plan
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
+                                    <div className="flex gap-2 items-center">
+                                        {short.status === 'done' && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleDownload(short)}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs transition-colors"
+                                                >
+                                                    <Download size={12} />
+                                                    Download
+                                                </button>
+                                                <button
+                                                    onClick={() => onAddToPlan(short)}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs transition-colors border border-indigo-500/30"
+                                                >
+                                                    <PlusCircle size={12} />
+                                                    Add to Plan
+                                                </button>
+                                            </>
+                                        )}
+                                        {onDelete && (short.status === 'error' || short.status === 'generating') && (
+                                            <button
+                                                onClick={() => onDelete(short)}
+                                                className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-xs transition-colors border border-rose-500/20"
+                                                title="Remove failed or stuck video"
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                        )}
+                                        {onDelete && short.status === 'done' && (
+                                            <button
+                                                onClick={() => onDelete(short)}
+                                                className="flex items-center justify-center py-1.5 px-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-300 text-xs transition-colors"
+                                                title="Remove video"
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </motion.div>
                         ))

@@ -21,11 +21,11 @@ const { chromium } = require('playwright');
     console.log("Navigating to localhost:3000...");
     await page.goto('http://localhost:3000');
 
-    console.log("Waiting for Connect button...");
-    const connectBtn = page.getByRole('button', { name: /Connect/i });
+    console.log("Waiting for Start conversation button...");
+    const connectBtn = page.getByRole('button', { name: /Start conversation/i });
     await connectBtn.waitFor({ state: 'visible' });
 
-    console.log("Clicking Connect...");
+    console.log("Clicking Start conversation...");
     await connectBtn.click();
 
     console.log("Waiting 3 seconds to catch errors...");

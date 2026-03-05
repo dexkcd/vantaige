@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
-import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X, Trash2 } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X, Trash2, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   fetchVantAIgeContext,
@@ -20,11 +20,20 @@ import {
   startShortFormVideoAction,
   checkShortFormVideoStatusAction,
   fetchShortVideosAction,
+  deleteShortVideoAction,
   createSessionAction,
   getSessionByPasscodeAction,
 } from './actions/memory';
 import { compressBase64Image } from '@/lib/compressImage';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
+
+function toDisplayUrl(imageUrl: string | undefined): string | undefined {
+  if (!imageUrl) return undefined;
+  if (imageUrl.startsWith('https://firebasestorage.googleapis.com/')) {
+    return `/api/asset?url=${encodeURIComponent(imageUrl)}`;
+  }
+  return imageUrl;
+}
 import ShortsSidebar from '@/components/ShortsSidebar';
 
 // Types
@@ -75,7 +84,6 @@ export default function Dashboard() {
   const [isSetupComplete, setIsSetupComplete] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const [strategyPhase, setStrategyPhase] = useState<string>('Ideation');
   const [brandIdentity, setBrandIdentity] = useState<string>('Vibrant, futuristic AI brand');
   const [isPulsing, setIsPulsing] = useState(false);
   const [sessionLogs, setSessionLogs] = useState<any[]>([]);
@@ -85,6 +93,7 @@ export default function Dashboard() {
   const [isToolPending, setIsToolPending] = useState(false);
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
   const [shortVideos, setShortVideos] = useState<Array<{ id: string; prompt: string; status: 'generating' | 'done' | 'error'; videoUrl?: string }>>([]);
+  const [shortVideoError, setShortVideoError] = useState<string | null>(null);
   const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null);
 
@@ -106,6 +115,9 @@ export default function Dashboard() {
   // Track events for summarization
   const sessionNotesRef = useRef<string[]>([]);
 
+  // Dedupe tool calls: Gemini may send the same call in both modelTurn.parts and toolCall
+  const processedToolCallIdsRef = useRef<Set<string>>(new Set());
+
   // Session management: passcode-based restore
   type SessionPhase = 'choose' | 'new' | 'continue' | 'active';
   const [sessionPhase, setSessionPhase] = useState<SessionPhase>('choose');
@@ -115,8 +127,21 @@ export default function Dashboard() {
   const [continueError, setContinueError] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLookingUpSession, setIsLookingUpSession] = useState(false);
+  const [startBannerDismissed, setStartBannerDismissed] = useState(false);
+  const [passcodeCopied, setPasscodeCopied] = useState(false);
 
   const scopeId = sessionId ?? 'vantaige-brand-001';
+
+  const copyPasscode = async () => {
+    if (!sessionPasscode) return;
+    try {
+      await navigator.clipboard.writeText(sessionPasscode);
+      setPasscodeCopied(true);
+      setTimeout(() => setPasscodeCopied(false), 2000);
+    } catch {
+      // fallback for older browsers
+    }
+  };
 
   const modelTurnCountRef = useRef(0);
   const isSetupCompleteRef = useRef(false);
@@ -142,7 +167,7 @@ export default function Dashboard() {
         id: a.id,
         prompt: a.prompt,
         status: (a.status as BrandAsset['status']) || 'done',
-        dataUrl: a.image_url,
+        dataUrl: toDisplayUrl(a.image_url) ?? a.image_url,
       })));
 
       const savedTasks = await fetchKanbanTasksAction(sessionId);
@@ -187,10 +212,10 @@ export default function Dashboard() {
 
 PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream. If the screen-share (designs, mockups) or camera feed (physical products) shows anything that contradicts the saved Vibe Profile — wrong brand colors, inconsistent typography, off-brand imagery — interrupt and deliver a concise correction. Example: "I notice that blue on your Figma mockup doesn't match the electric indigo in your Vibe Profile — want me to flag the exact HEX?"
 
-TOOLS:
+TOOLS: Call each tool ONCE per user request—never duplicate. After a tool returns, always give a brief verbal confirmation (e.g. "Done, I've added that to your Launch Pack" or "I've started generating your video—it'll be ready in a minute or two").
 - finalize_marketing_strategy: Set the current strategy phase.
-- generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Use a rich, brand-aware prompt. When the user has screen share or camera on, you can request assets "based on what you see" — the system will use the current frame (screen or camera, whichever they have active).
-- generate_short_form_video: Call this when the user asks for a TikTok, YouTube Short, or vertical short-form video. Use reference_asset_ids to include prior brand assets (logos, products) for visual consistency. Prefer prompts focused on visuals, motion, and mood—avoid heavy text or typography in the video. Videos are 9:16 and take 1-3 minutes to generate.
+- generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Call it once per asset request. Use a rich, brand-aware prompt. When the user has screen share or camera on, you can request assets "based on what you see" — the system will use the current frame (screen or camera, whichever they have active).
+- generate_short_form_video: Call when user wants a TikTok, YouTube Short, or vertical short-form video. Call it once per video request. CRITICAL: The video_prompt MUST be a structured mini-spec (80–150 words), NOT a vague vibe. Use this skeleton: (1) Video type & goal — e.g. "8s vertical ad for TikTok showcasing [product], aspirational mood"; (2) Visual formula — Camera/shot, Subject, Action, Setting, Style & mood; (3) Text/CTA — Add ONE clear CTA as text overlay at the END of the video only. Format: "Add only this exact text overlay, nothing else: '[CTA phrase]' at [last 2–3 seconds], center or bottom, clean sans serif. No typos, no emojis, no extra words, no additional text." E.g. for 8s video: "at 5–8s"; for 6s: "at 4–6s"; for 4s: "at 2–4s"; (4) Brand guardrails — "Brand vibe: modern, calm, confident. Avoid: exaggerated reactions, cartoon graphics, floating emojis, confetti, neon, meme templates."; (5) Optional structure — e.g. "0–4s: hook and action; 4–8s: payoff with CTA." Use reference_asset_ids for brand assets. Generation takes 1–3 min.
 - create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. For TikTok/YouTube Shorts video posts, include video_asset_id (from prior generate_short_form_video). IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the asset on the platform.
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
 - end_session: End the session when the user is done.
@@ -222,11 +247,11 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             },
             {
               name: 'generate_short_form_video',
-              description: 'Generates a TikTok or YouTube Short (9:16 vertical video) using Veo 3.1. Use reference_asset_ids for prior brand assets. Prefer visuals, motion, and mood over text-heavy prompts. Generation takes 1-3 minutes.',
+              description: 'Generates a TikTok or YouTube Short (9:16 vertical video) using Veo 3.1. video_prompt MUST be a structured mini-spec (80–150 words) with: video type/goal, camera/shot style, subject, action, setting, style & mood, ONE CTA text overlay at the END only (specify exact copy, timing for last 2–3s, position, clean sans serif; no typos, no emojis, no extra text), and brand guardrails. Use reference_asset_ids for brand assets. Generation takes 1–3 min.',
               parameters: {
                 type: 'object',
                 properties: {
-                  video_prompt: { type: 'string', description: 'A detailed prompt describing the video to generate' },
+                  video_prompt: { type: 'string', description: 'Structured mini-spec (80–150 words). Include: (1) Video type & goal; (2) Camera/shot, subject, action, setting, style & mood; (3) CTA text overlay at END only: "Add only this exact text overlay, nothing else: \'[CTA phrase]\' at [last 2–3s, e.g. 5–8s for 8s video], center or bottom, clean sans serif. No typos, no emojis, no extra words."; (4) "Brand vibe: modern, calm, confident. Avoid: exaggerated reactions, cartoon graphics, emojis, confetti, neon, meme templates."; (5) Optional: time-based structure. Do NOT use vague descriptions.' },
                   reference_asset_ids: { type: 'array', items: { type: 'string' }, description: 'Optional. IDs of brand assets to use as reference for visual consistency (logos, products)' },
                   duration_seconds: { type: 'string', enum: ['4', '6', '8'], description: 'Optional. Video length in seconds. Default 6.' },
                   platform: { type: 'string', enum: ['tiktok', 'youtube_shorts'], description: 'Optional. Target platform.' },
@@ -306,17 +331,6 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
   };
 
-  const handleTextInput = (text: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        realtimeInput: {
-          text,
-        },
-      }));
-      sessionNotesRef.current.push(`User said: ${text}`);
-    }
-  };
-
   const { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback, flushPlayback } =
     useAudioPipeline(handleAudioInput, getCanSendRef);
 
@@ -330,7 +344,8 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
   const { isCapturing, isScreenSharing, isCameraOn, startScreenShare, stopScreenShare, startCamera, stopCamera, stopCompositor, videoRefCamera, videoRefScreen, canvasRef } = useCompositor(handleFrame);
 
-  const connectAPI = async () => {
+  const connectAPI = async (overrideScopeId?: string) => {
+    const effectiveScope = overrideScopeId ?? scopeId;
     modelTurnCountRef.current = 0;
     micChunkCountRef.current = 0;
     micLogCountRef.current = 0;
@@ -338,7 +353,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     setIsConnecting(true);
 
     // 1. Fetch Context
-    const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(scopeId);
+    const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(effectiveScope);
     if (vibeProfile?.brand_identity) {
       setBrandIdentity(vibeProfile.brand_identity);
     }
@@ -512,6 +527,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       setIsConnected(false);
       setIsToolPending(false);
       setIsSetupComplete(false);
+      processedToolCallIdsRef.current.clear();
       stopRecording();
       stopCompositor();
 
@@ -547,15 +563,27 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     console.log('Tool Call Received:', toolCall);
     const { name, args, id } = toolCall;
 
+    if (id && processedToolCallIdsRef.current.has(id)) {
+      dbg('tool', `⏭️ Skipping duplicate tool call ${name} (id=${id})`);
+      return;
+    }
+    if (id) processedToolCallIdsRef.current.add(id);
+
     // Activate the "thinking" pulse as soon as a tool call is received
     setIsToolPending(true);
 
     if (name === 'finalize_marketing_strategy') {
-      setStrategyPhase(args.phase);
       sessionNotesRef.current.push(`Moved strategy phase to: ${args.phase}`);
       sendToolResponse(id, name, { success: true, phase: args.phase });
 
     } else if (name === 'generate_brand_asset') {
+      const alreadyGenerating = brandAssets.some(a => a.status === 'generating');
+      if (alreadyGenerating) {
+        sendToolResponse(id, name, {
+          success: false,
+          error: 'A brand asset is already generating. Please wait for it to complete.',
+        });
+      } else {
       const assetId = `asset-${Date.now()}`;
       const newAsset: BrandAsset = { id: assetId, prompt: args.image_prompt, status: 'generating' };
       setBrandAssets(prev => [newAsset, ...prev]);
@@ -575,7 +603,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         const newAssetData = refreshed.find(a => a.id === saved.id);
         setBrandAssets(prev =>
           prev.map(a => a.id === assetId
-            ? { ...a, id: saved.id, status: 'done', dataUrl: newAssetData?.image_url } : a)
+            ? { ...a, id: saved.id, status: 'done', dataUrl: toDisplayUrl(newAssetData?.image_url) ?? newAssetData?.image_url } : a)
         );
         sendToolResponse(id, name, { success: true, asset_id: saved.id, message: 'Brand asset generated and saved to Launch Pack.' });
         sessionNotesRef.current.push(`Generated brand asset for: ${args.image_prompt}`);
@@ -585,6 +613,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           prev.map(a => a.id === assetId ? { ...a, status: 'error' } : a)
         );
         sendToolResponse(id, name, { success: false, error: 'Image generation failed.' });
+      }
       }
 
     } else if (name === 'generate_short_form_video') {
@@ -602,6 +631,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         status: 'generating',
       };
       setShortVideos(prev => [newShort, ...prev]);
+      setShortVideoError(null);
       sessionNotesRef.current.push(`Generating short-form video: ${args.video_prompt}`);
 
       try {
@@ -610,16 +640,30 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           duration_seconds: ['4', '6', '8'].includes(String(args.duration_seconds)) ? parseInt(String(args.duration_seconds), 10) as 4 | 6 | 8 : undefined,
           platform: args.platform === 'tiktok' || args.platform === 'youtube_shorts' ? args.platform : undefined,
         });
-        setShortVideos(prev => prev.map(s => s.id === tempId ? { ...s, id: job_id } : s));
+        const refreshed = await fetchShortVideosAction(scopeId);
+        setShortVideos(refreshed.map((v) => ({
+          id: v.id,
+          prompt: v.prompt,
+          status: (v.status as 'generating' | 'done' | 'error') ?? 'generating',
+          videoUrl: v.video_url,
+        })));
+
+        // Send immediate confirmation so the AI can verbalize right away (video takes 1–3 min)
+        sendToolResponse(id, name, {
+          success: true,
+          job_id,
+          status: 'generating',
+          message: 'Video generation started. It will be ready in 1–3 minutes. Check the Shorts section when it appears.',
+        });
 
         const poll = async () => {
           const result = await checkShortFormVideoStatusAction(job_id, scopeId);
           if (result.status === 'done' && result.video_url) {
             setShortVideos(prev => prev.map(s => s.id === job_id ? { ...s, status: 'done' as const, videoUrl: result.video_url } : s));
-            sendToolResponse(id, name, { success: true, job_id, video_url: result.video_url, message: 'Short-form video generated. Check the Shorts section.' });
+            // Final result sent via a fresh clientContent turn (user sees video in UI); no second tool response—we already sent "started"
           } else if (result.status === 'error') {
             setShortVideos(prev => prev.map(s => s.id === job_id ? { ...s, status: 'error' as const } : s));
-            sendToolResponse(id, name, { success: false, error: result.error ?? 'Video generation failed.' });
+            // Tool response already sent as "started"; user sees error state in Shorts UI
           } else {
             setTimeout(poll, 15000);
           }
@@ -627,8 +671,10 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         setTimeout(poll, 15000);
       } catch (err) {
         console.error('Short video start failed:', err);
+        const msg = err instanceof Error ? err.message : 'Failed to start video generation.';
         setShortVideos(prev => prev.map(s => s.id === tempId ? { ...s, status: 'error' as const } : s));
-        sendToolResponse(id, name, { success: false, error: 'Failed to start video generation.' });
+        setShortVideoError(msg);
+        sendToolResponse(id, name, { success: false, error: msg });
       }
       }
 
@@ -692,7 +738,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       const refreshed = await fetchBrandAssetsAction(scopeId);
       const newAssetData = refreshed.find(a => a.id === saved.id);
       setBrandAssets(prev =>
-        prev.map(a => a.id === asset.id ? { ...a, id: saved.id, status: 'done' as const, dataUrl: newAssetData?.image_url } : a)
+        prev.map(a => a.id === asset.id ? { ...a, id: saved.id, status: 'done' as const, dataUrl: toDisplayUrl(newAssetData?.image_url) ?? newAssetData?.image_url } : a)
       );
     } catch (err) {
       console.error('Regeneration failed:', err);
@@ -732,6 +778,14 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleDeleteShort = async (short: { id: string; prompt: string; status: string; videoUrl?: string }) => {
+    const isTempId = short.id.startsWith('short-');
+    if (!isTempId) {
+      await deleteShortVideoAction(scopeId, short.id);
+    }
+    setShortVideos(prev => prev.filter(s => s.id !== short.id));
   };
 
   const handleAddShortToPlan = async (short: { id: string; prompt: string; status: string; videoUrl?: string }) => {
@@ -800,6 +854,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
   const handleStartSession = () => {
     setSessionPhase('active');
+    if (sessionId) connectAPI(sessionId);
   };
 
   const handleContinueSession = async () => {
@@ -811,8 +866,10 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       const result = await getSessionByPasscodeAction(code);
       if (result) {
         setSessionId(result.session_id);
+        setSessionPasscode(code);
         setSessionPhase('active');
         setContinuePasscodeInput('');
+        connectAPI(result.session_id);
       } else {
         setContinueError('Invalid passcode');
       }
@@ -856,7 +913,17 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-md text-center"
           >
             <p className="text-neutral-400 mb-2">Your session passcode</p>
-            <p className="text-2xl font-mono font-bold tracking-widest text-indigo-300 mb-4">{sessionPasscode}</p>
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <p className="text-2xl font-mono font-bold tracking-widest text-indigo-300">{sessionPasscode}</p>
+              <button
+                onClick={copyPasscode}
+                className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-800 hover:text-indigo-300 transition-colors"
+                title="Copy passcode"
+                aria-label="Copy passcode"
+              >
+                {passcodeCopied ? <Check size={20} className="text-emerald-400" /> : <Copy size={20} />}
+              </button>
+            </div>
             <p className="text-xs text-neutral-500 mb-6">Save this to restore your session later.</p>
             <button
               onClick={handleStartSession}
@@ -971,21 +1038,16 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             </button>
           </div>
 
-          <div className="flex gap-2 mr-4">
-            <input
-              type="text"
-              id="test-text-input"
-              placeholder="Type message..."
-              className="px-3 py-1 bg-neutral-800 rounded text-sm text-white border border-neutral-700 focus:outline-none"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleTextInput(e.currentTarget.value);
-                  e.currentTarget.value = '';
-                }
-              }}
-            />
-          </div>
-
+          {sessionPasscode && (
+            <button
+              onClick={copyPasscode}
+              className="rounded-full p-2.5 text-neutral-500 hover:bg-neutral-800 hover:text-indigo-300 transition-colors"
+              title="Copy passcode"
+              aria-label="Copy passcode"
+            >
+              {passcodeCopied ? <Check size={18} className="text-emerald-400" /> : <Copy size={18} />}
+            </button>
+          )}
           <button
             onClick={isConnected ? disconnectAPI : connectAPI}
             disabled={isConnecting}
@@ -996,10 +1058,31 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           >
             {isConnecting ? <Loader2 size={18} className="animate-spin" /> :
               isConnected ? <><Square size={16} className="fill-current" /> End</> :
-                <><Play size={16} className="fill-current" /> Connect</>}
+                <><Play size={16} className="fill-current" /> Start conversation</>}
           </button>
         </div>
       </header>
+
+      <AnimatePresence>
+        {!isConnected && !isConnecting && !startBannerDismissed && (
+          <motion.div
+            key="start-banner"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-neutral-800 bg-neutral-900/80 px-5 py-3 text-neutral-300 backdrop-blur-sm"
+          >
+          <span className="text-sm">Start conversation when you&apos;re ready</span>
+          <button
+            onClick={() => setStartBannerDismissed(true)}
+            className="rounded-full p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300 transition-colors"
+            aria-label="Dismiss"
+          >
+            <X size={18} />
+          </button>
+        </motion.div>
+        )}
+      </AnimatePresence>
 
       <main className="grid grid-cols-12 gap-6 h-[calc(100vh-140px)]">
         {/* Pane 1: Live Feed + Vibe + History */}
@@ -1107,36 +1190,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         {/* Pane 2: Strategy Kanban */}
         <section className="col-span-12 md:col-span-6 lg:col-span-4 h-full bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-6 backdrop-blur-sm overflow-hidden flex flex-col">
           <h2 className="text-xl font-semibold mb-2">Strategy Flow</h2>
-          <p className="text-xs text-neutral-500 mb-5">Phases &amp; roadmap tasks</p>
-
-          {/* Phase stepper */}
-          <div className="space-y-3 relative mb-6">
-            <div className="absolute top-0 bottom-0 left-[23px] w-px bg-neutral-800 z-0"></div>
-            {['Ideation', 'Drafting', 'Production', 'Review'].map((phase, idx) => {
-              const isActive = strategyPhase === phase;
-              return (
-                <motion.div
-                  key={phase}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className={`relative z-10 flex items-center gap-4 p-3 rounded-2xl transition-all duration-300
-                    ${isActive ? 'bg-indigo-500/10 border border-indigo-500/30' : 'hover:bg-neutral-800/50'}`}
-                >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 border-neutral-900 shrink-0 transition-colors duration-500
-                    ${isActive ? 'bg-indigo-500 text-white' : 'bg-neutral-800 text-neutral-500'}`}>
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <h3 className={`font-semibold ${isActive ? 'text-indigo-300' : 'text-neutral-400'}`}>{phase}</h3>
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      {isActive ? 'vantAIge is reviewing.' : 'Pending.'}
-                    </p>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+          <p className="text-xs text-neutral-500 mb-4">Roadmap tasks</p>
 
           {/* Kanban Task Cards */}
           <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar">
@@ -1161,7 +1215,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     <div className="flex gap-3">
                       {task.image_url && (
                         <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-neutral-800">
-                          <img src={task.image_url} alt="" className="w-full h-full object-cover" />
+                          <img src={toDisplayUrl(task.image_url) || task.image_url} alt="" className="w-full h-full object-cover" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
@@ -1231,6 +1285,9 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             <ShortsSidebar
               shorts={shortVideos}
               onAddToPlan={handleAddShortToPlan}
+              onDelete={handleDeleteShort}
+              error={shortVideoError}
+              onDismissError={() => setShortVideoError(null)}
             />
           )}
         </section>
@@ -1307,7 +1364,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     <h4 className="text-sm font-medium text-neutral-300 mb-2">Image</h4>
                     <div className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950">
                       <img
-                        src={selectedTask.image_url}
+                        src={toDisplayUrl(selectedTask.image_url) || selectedTask.image_url}
                         alt={selectedTask.caption || selectedTask.title}
                         className="w-full aspect-video object-contain"
                       />

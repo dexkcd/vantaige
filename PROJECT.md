@@ -30,7 +30,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ### 4. 🎨 Real-Time Execution
 - [x] **Nano Banana** Asset Gen: Image generation during live calls (Imagen 4.0 via Vertex AI)
-- [x] **Short-Form Video**: TikTok/YouTube Shorts (9:16) via [Veo 3.1](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/veo/3-1-generate). Reference brand assets for visual consistency. Videos are 4, 6, or 8 seconds.
+- [x] **Short-Form Video**: TikTok/YouTube Shorts (9:16) via [Veo 3.1](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/veo/3-1-generate). Structured prompt format (video type, camera/subject/action/setting/style, copy control, brand guardrails). Reference brand assets for visual consistency. Videos are 4, 6, or 8 seconds.
 - [ ] Launch Pack Sidebar: Pinned assets & copy for review
 - [x] Strategic Grounding: Google Search integration for trends
 
@@ -54,7 +54,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 ### Session Flow
 1. **Landing**: User chooses **New Session** (creates passcode) or **Continue Session** (enters passcode).
 2. **Scope**: All data (vibe profiles, session logs, marketing plans, brand assets, short videos) is scoped by `session_id`. Passcode maps to session via `sessions` collection.
-3. **Connect**: Once a session is active, user can connect to the Live API and run the Studio.
+3. **Start conversation**: Once a session is active, user clicks "Start conversation" to connect to the Live API and run the Studio.
 
 ### Data Flow
 1. **Input**: Client captures Audio (Mic) + Frames (Canvas)
@@ -157,6 +157,13 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA"
 
 # Firebase Storage for brand assets and Veo video output (gs://{projectId}.firebasestorage.app/)
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/storage.objectAdmin"
+```
+
+**Firebase Storage bucket (public read)** – brand assets use public URLs; make the bucket readable by all:
+```bash
+# Required for brand asset image URLs to work (avoids signBlob on Cloud Run)
+gcloud storage buckets add-iam-policy-binding gs://vantaige-417aa.firebasestorage.app \
+  --member=allUsers --role=roles/storage.objectViewer
 ```
 
 **Firestore indexes**: The `short_videos` collection requires a composite index. Deploy with `firebase deploy --only firestore:indexes`, or create it via the [Firebase Console](https://console.firebase.google.com) when prompted. See `firestore/DEPLOY_INDEX.md`.

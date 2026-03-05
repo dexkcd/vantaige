@@ -17,11 +17,6 @@ interface LaunchPackSidebarProps {
 }
 
 export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }: LaunchPackSidebarProps) {
-    const handleDownload = (asset: BrandAsset) => {
-        if (!asset.dataUrl) return;
-        window.open(asset.dataUrl, '_blank', 'noopener,noreferrer');
-    };
-
     return (
         <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
             <h2 className="text-xl font-semibold mb-1 flex justify-between items-center">
@@ -76,6 +71,7 @@ export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }:
                                         <img
                                             src={asset.dataUrl}
                                             alt={asset.prompt}
+                                            referrerPolicy="no-referrer"
                                             className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
                                         />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -91,13 +87,22 @@ export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }:
                                         <div className="flex gap-2">
                                             {asset.status === 'done' && (
                                                 <>
-                                                    <button
-                                                        onClick={() => handleDownload(asset)}
-                                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs transition-colors"
-                                                    >
-                                                        <Download size={12} />
-                                                        Download
-                                                    </button>
+                                                    {asset.dataUrl ? (
+                                                        <a
+                                                            href={asset.dataUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs transition-colors"
+                                                        >
+                                                            <Download size={12} />
+                                                            Download
+                                                        </a>
+                                                    ) : (
+                                                        <span className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-neutral-800/50 text-neutral-500 text-xs cursor-not-allowed">
+                                                            <Download size={12} />
+                                                            Download
+                                                        </span>
+                                                    )}
                                                     <button
                                                         onClick={() => onAddToPlan(asset)}
                                                         className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs transition-colors border border-indigo-500/30"

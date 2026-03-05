@@ -71,11 +71,11 @@ describe('Short-form video actions', () => {
             expect(mockGenerateVideos).toHaveBeenCalledWith(
                 expect.objectContaining({
                     model: 'veo-3.1-generate-001',
-                    prompt: 'A cat walking in the rain',
+                    prompt: expect.stringContaining('A cat walking in the rain'),
                     config: expect.objectContaining({
                         aspectRatio: '9:16',
                         durationSeconds: 6,
-                        negativePrompt: expect.stringContaining('minimal text'),
+                        negativePrompt: expect.stringContaining('no typos'),
                     }),
                 })
             );

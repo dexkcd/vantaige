@@ -575,9 +575,37 @@ export async function updateShortVideo(
     }
 }
 
+export async function deleteShortVideo(brandId: string, videoId: string): Promise<boolean> {
+    try {
+        const ref = db.collection('short_videos').doc(videoId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        await ref.delete();
+        return true;
+    } catch (error) {
+        logFirestoreError('deleting short video', error);
+        return false;
+    }
+}
+
+const STALE_GENERATING_MINUTES = 10;
+
+function isStaleGenerating(createdAtIso: string | undefined): boolean {
+    if (!createdAtIso) return true;
+    try {
+        const created = new Date(createdAtIso).getTime();
+        const cutoff = Date.now() - STALE_GENERATING_MINUTES * 60 * 1000;
+        return created < cutoff;
+    } catch {
+        return true;
+    }
+}
+
 /**
- * Returns true if this brand already has a short video with status 'generating'.
- * Used to enforce one-at-a-time generation.
+ * Returns true if this brand already has a short video with status 'generating'
+ * that is NOT stale (created within last 10 min). Stale jobs are auto-marked error.
  */
 export async function hasGeneratingShortVideo(brandId: string): Promise<boolean> {
     try {
@@ -587,7 +615,21 @@ export async function hasGeneratingShortVideo(brandId: string): Promise<boolean>
             .orderBy('created_at', 'desc')
             .limit(20)
             .get();
-        return snap.docs.some((doc) => (doc.data().status ?? '') === 'generating');
+        let hasActive = false;
+        for (const doc of snap.docs) {
+            const d = doc.data();
+            const status = d.status ?? '';
+            const createdAt = toIsoString(d.created_at as Timestamp);
+            if (status === 'generating') {
+                if (isStaleGenerating(createdAt)) {
+                    await db.collection('short_videos').doc(doc.id).update({ status: 'error' });
+                } else {
+                    hasActive = true;
+                    break;
+                }
+            }
+        }
+        return hasActive;
     } catch (error) {
         logFirestoreError('checking generating short video', error);
         return false; // Allow generation if check fails to avoid blocking

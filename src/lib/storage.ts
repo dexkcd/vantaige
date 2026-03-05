@@ -37,11 +37,7 @@ export async function uploadBrandAssetImage(
         metadata: { contentType: mimeType },
     });
 
-    const [signedUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 365 * 24 * 60 * 60 * 1000,
-    });
-    return signedUrl;
+    return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media`;
 }
 
 /**

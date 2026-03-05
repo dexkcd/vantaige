@@ -14,6 +14,7 @@ import {
     deleteMarketingPlan,
     insertShortVideo,
     updateShortVideo,
+    deleteShortVideo,
     getShortVideoById,
     fetchShortVideos,
     hasGeneratingShortVideo,
@@ -488,11 +489,13 @@ export async function startShortFormVideoAction(
         durationSeconds,
         outputGcsUri,
         negativePrompt:
-            'minimal text, avoid heavy typography, no watermarks',
+            'no typos, no emojis, no extra words beyond the specified overlay, no watermarks',
     };
     if (referenceImages.length > 0) config.referenceImages = referenceImages;
 
-    const finalPrompt = prompt;
+    const brandGuardrails =
+        ' Brand vibe: modern, calm, confident. Avoid exaggerated reactions, cartoon graphics, emojis, neon gradients, meme templates.';
+    const finalPrompt = prompt.trim() + brandGuardrails;
 
     const operation = await ai.models.generateVideos({
         model: 'veo-3.1-generate-001',
@@ -557,4 +560,11 @@ export async function checkShortFormVideoStatusAction(
  */
 export async function fetchShortVideosAction(brandId: string) {
     return fetchShortVideos(brandId);
+}
+
+/**
+ * Deletes a short video. Use to remove failed or stuck entries.
+ */
+export async function deleteShortVideoAction(brandId: string, videoId: string): Promise<boolean> {
+    return deleteShortVideo(brandId, videoId);
 }
