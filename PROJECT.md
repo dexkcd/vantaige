@@ -35,6 +35,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ### 5. 🔄 The "Refine" Loop (Agentic Workflow)
 - [x] Kanban Bridge: Turning ideas into "Draft Plans" (AI `create_kanban_task` tool + Strategy Flow UI)
+- [x] Roadmap Task Detail View: Clickable cards with modal; image posts (image, caption, tags); status workflow (draft, pending, in progress, done)
 - [ ] **Next**: The "Recall" Button: Restarting sessions with specific mission context
 
 ---

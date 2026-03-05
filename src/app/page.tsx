@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
-import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   fetchVantAIgeContext,
@@ -11,6 +11,7 @@ import {
   summarizeSessionAction,
   generateBrandAssetAction,
   createKanbanTaskAction,
+  updateKanbanTaskStatusAction,
   saveBrandAssetAction,
   fetchBrandAssetsAction,
   fetchKanbanTasksAction,
@@ -26,18 +27,38 @@ interface ToolCall {
   id: string;
 }
 
+export type KanbanTaskStatus = 'draft' | 'pending' | 'in_progress' | 'done';
+
 export interface KanbanTask {
   id: string;
   title: string;
   platform: string;
   priority: 'high' | 'medium' | 'low';
   description: string;
+  image_url?: string;
+  caption?: string;
+  tags?: string[];
+  status: KanbanTaskStatus;
 }
 
 const priorityColors: Record<string, string> = {
   high: 'text-rose-400 border-rose-500/30 bg-rose-500/10',
   medium: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
   low: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+};
+
+const statusColors: Record<KanbanTaskStatus, string> = {
+  draft: 'text-neutral-400 border-neutral-600/50 bg-neutral-700/20',
+  pending: 'text-sky-400 border-sky-500/30 bg-sky-500/10',
+  in_progress: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
+  done: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+};
+
+const statusLabels: Record<KanbanTaskStatus, string> = {
+  draft: 'Draft',
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  done: 'Done',
 };
 
 export default function Dashboard() {
@@ -56,6 +77,7 @@ export default function Dashboard() {
   const [isToolPending, setIsToolPending] = useState(false);
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
   const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
+  const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null);
 
   // Cross-session trend analysis
   const [trendAnalysis, setTrendAnalysis] = useState<string | null>(null);
@@ -102,7 +124,10 @@ export default function Dashboard() {
       })));
 
       const savedTasks = await fetchKanbanTasksAction(defaultBrandId);
-      setKanbanTasks(savedTasks);
+      setKanbanTasks(savedTasks.map((t) => ({
+        ...t,
+        status: (t.status as KanbanTaskStatus) || 'draft',
+      })));
     };
     loadContext();
   }, []);
@@ -135,7 +160,7 @@ PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream. If the screen-share (desi
 TOOLS:
 - finalize_marketing_strategy: Set the current strategy phase.
 - generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Use a rich, brand-aware prompt. When the user has screen share or camera on, you can request assets "based on what you see" — the system will use the current frame (screen or camera, whichever they have active).
-- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description).
+- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the image on the platform.
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
 - end_session: End the session when the user is done.
 
@@ -166,7 +191,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             },
             {
               name: 'create_kanban_task',
-              description: 'Converts a brainstormed idea into a persistent task on the dashboard. MUST be called when adding something to the roadmap or plan.',
+              description: 'Converts a brainstormed idea into a persistent task on the dashboard. MUST be called when adding something to the roadmap or plan. For social media image posts, include asset_id, caption (engaging post copy, NOT the image prompt), and tags.',
               parameters: {
                 type: 'object',
                 properties: {
@@ -174,13 +199,21 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                   description: { type: 'string', description: 'Detailed description of the task and its strategic rationale' },
                   platform: {
                     type: 'string',
-                    enum: ['TikTok', 'Instagram', 'Web', 'Email'],
+                    enum: ['TikTok', 'Instagram', 'Web', 'Email', 'Multi-channel'],
                     description: 'The platform or channel for this task',
                   },
                   priority: {
                     type: 'string',
                     enum: ['low', 'medium', 'high'],
                     description: 'Task priority level',
+                  },
+                  asset_id: { type: 'string', description: 'Optional. ID of a brand asset to attach (from prior generate_brand_asset)' },
+                  caption: { type: 'string', description: 'Optional. Engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual caption that would accompany the image on Instagram/TikTok.' },
+                  tags: { type: 'array', items: { type: 'string' }, description: 'Optional. Hashtags or category tags for social posts' },
+                  status: {
+                    type: 'string',
+                    enum: ['draft', 'pending', 'in_progress', 'done'],
+                    description: 'Optional. Task status. Defaults to draft.',
                   },
                 },
                 required: ['title', 'description', 'platform', 'priority'],
@@ -509,16 +542,28 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       }
 
     } else if (name === 'create_kanban_task') {
-      const { title, platform, priority, description } = args;
+      const { title, platform, priority, description, asset_id, caption, tags, status } = args;
       const tempId = `task-${Date.now()}`;
-      const optimisticTask: KanbanTask = { id: tempId, title, platform, priority: priority as any, description };
+      const optimisticTask: KanbanTask = {
+        id: tempId,
+        title,
+        platform,
+        priority: priority as KanbanTask['priority'],
+        description,
+        status: (status as KanbanTaskStatus) || 'draft',
+      };
       setKanbanTasks(prev => [optimisticTask, ...prev]);
       sessionNotesRef.current.push(`Added to roadmap: ${title} (${platform})`);
 
       try {
-        const saved = await createKanbanTaskAction(defaultBrandId, title, platform, priority, description);
+        const saved = await createKanbanTaskAction(defaultBrandId, title, platform, priority, description, {
+          asset_id,
+          caption,
+          tags: Array.isArray(tags) ? tags : undefined,
+          status: status as KanbanTaskStatus | undefined,
+        });
         setKanbanTasks(prev =>
-          prev.map(t => t.id === tempId ? { ...t, id: saved.id || tempId } : t)
+          prev.map(t => t.id === tempId ? { ...t, id: saved.id || tempId, image_url: saved.image_url, caption: saved.caption, tags: saved.tags } : t)
         );
         sendToolResponse(id, name, { success: true, task_id: saved.id, message: `Task "${title}" added to your roadmap.` });
       } catch {
@@ -565,22 +610,46 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
   };
 
-  const handleAddToPlan = (asset: BrandAsset) => {
+  const handleAddToPlan = async (asset: BrandAsset) => {
     const tempId = `task-asset-${Date.now()}`;
-    setKanbanTasks(prev => [{
+    const task: KanbanTask = {
       id: tempId,
       title: `Brand Asset: ${asset.prompt.slice(0, 40)}…`,
       platform: 'Multi-channel',
       priority: 'medium',
       description: `Generated asset from prompt: ${asset.prompt}`,
-    }, ...prev]);
-    createKanbanTaskAction(
-      defaultBrandId,
-      `Brand Asset: ${asset.prompt.slice(0, 40)}`,
-      'Multi-channel',
-      'medium',
-      `Generated asset from prompt: ${asset.prompt}`
-    ).catch(console.error);
+      image_url: asset.dataUrl,
+      caption: undefined,
+      status: 'draft',
+    };
+    setKanbanTasks(prev => [task, ...prev]);
+    try {
+      const saved = await createKanbanTaskAction(
+        defaultBrandId,
+        `Brand Asset: ${asset.prompt.slice(0, 40)}`,
+        'Multi-channel',
+        'medium',
+        `Generated asset from prompt: ${asset.prompt}`,
+        { image_url: asset.dataUrl, prompt_for_caption: asset.prompt, status: 'draft' }
+      );
+      setKanbanTasks(prev =>
+        prev.map(t => (t.id === tempId ? { ...t, id: saved.id || tempId, caption: saved.caption } : t))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleStatusChange = async (taskId: string, newStatus: KanbanTaskStatus) => {
+    const ok = await updateKanbanTaskStatusAction(defaultBrandId, taskId, newStatus);
+    if (ok) {
+      setKanbanTasks(prev =>
+        prev.map(t => (t.id === taskId ? { ...t, status: newStatus } : t))
+      );
+      if (selectedTask?.id === taskId) {
+        setSelectedTask((prev) => (prev ? { ...prev, status: newStatus } : null));
+      }
+    }
   };
 
   return (
@@ -825,27 +894,54 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                 </motion.div>
               ) : (
                 kanbanTasks.map(task => (
-                  <motion.div
+                  <motion.button
                     key={task.id}
+                    type="button"
                     layout
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-colors"
+                    onClick={() => setSelectedTask(task)}
+                    className="w-full text-left p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                   >
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <p className="text-sm text-neutral-200 font-medium leading-tight">{task.title}</p>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${priorityColors[task.priority] || priorityColors.medium}`}>
-                        {task.priority}
-                      </span>
+                    <div className="flex gap-3">
+                      {task.image_url && (
+                        <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-neutral-800">
+                          <img src={task.image_url} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="text-sm text-neutral-200 font-medium leading-tight">{task.title}</p>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusColors[task.status || 'draft']}`}>
+                              {statusLabels[task.status || 'draft']}
+                            </span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${priorityColors[task.priority] || priorityColors.medium}`}>
+                              {task.priority}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className="text-[10px] bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-md">{task.platform}</span>
+                          {task.tags?.map((tag) => (
+                            <span key={tag} className="text-[10px] bg-neutral-800/80 text-neutral-500 px-1.5 py-0.5 rounded">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                        {task.caption && (
+                          <p className="text-xs text-neutral-500 mt-1.5 line-clamp-1">{task.caption}</p>
+                        )}
+                        {task.description && !task.caption && (
+                          <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{task.description}</p>
+                        )}
+                        {task.description && task.caption && (
+                          <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{task.description}</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-[10px] bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-md">{task.platform}</span>
-                    </div>
-                    {task.description && (
-                      <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{task.description}</p>
-                    )}
-                  </motion.div>
+                  </motion.button>
                 ))
               )}
             </AnimatePresence>
@@ -857,6 +953,108 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           <LaunchPackSidebar assets={brandAssets} onAddToPlan={handleAddToPlan} onRegenerate={handleRegenerate} />
         </section>
       </main>
+
+      {/* ── Task Detail Modal ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {selectedTask && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedTask(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed inset-4 max-h-[calc(100vh-2rem)] md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg md:max-h-[90vh] z-50 bg-neutral-900 border border-neutral-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 shrink-0">
+                <h3 className="text-lg font-semibold text-neutral-100">Task Details</h3>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTask(null)}
+                  className="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+                <div>
+                  <h4 className="text-sm font-medium text-neutral-300 mb-1">Title</h4>
+                  <p className="text-neutral-100">{selectedTask.title}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-[10px] bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">{selectedTask.platform}</span>
+                  <span className={`text-[10px] font-semibold px-2 py-1 rounded-md border ${priorityColors[selectedTask.priority] || priorityColors.medium}`}>
+                    {selectedTask.priority}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-neutral-300 mb-2">Status</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(['draft', 'pending', 'in_progress', 'done'] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => handleStatusChange(selectedTask.id, s)}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-xl border transition-colors ${
+                          (selectedTask.status || 'draft') === s
+                            ? statusColors[s]
+                            : 'border-neutral-700 text-neutral-500 hover:border-neutral-600 hover:text-neutral-400'
+                        }`}
+                      >
+                        {statusLabels[s]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {selectedTask.description && (
+                  <div>
+                    <h4 className="text-sm font-medium text-neutral-300 mb-1">Description</h4>
+                    <p className="text-sm text-neutral-400 leading-relaxed">{selectedTask.description}</p>
+                  </div>
+                )}
+                {selectedTask.image_url && (
+                  <div>
+                    <h4 className="text-sm font-medium text-neutral-300 mb-2">Image</h4>
+                    <div className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950">
+                      <img
+                        src={selectedTask.image_url}
+                        alt={selectedTask.caption || selectedTask.title}
+                        className="w-full aspect-video object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+                {selectedTask.caption && (
+                  <div>
+                    <h4 className="text-sm font-medium text-neutral-300 mb-1">Caption</h4>
+                    <p className="text-sm text-neutral-400 leading-relaxed">{selectedTask.caption}</p>
+                  </div>
+                )}
+                {selectedTask.tags && selectedTask.tags.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-neutral-300 mb-2">Tags</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedTask.tags.map((tag) => (
+                        <span key={tag} className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-lg">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ── Debug Panel ─────────────────────────────────────────────────── */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">

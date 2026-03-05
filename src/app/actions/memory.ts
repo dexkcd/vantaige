@@ -9,6 +9,8 @@ import {
     insertMarketingPlan,
     insertBrandAsset,
     fetchBrandAssets,
+    getBrandAssetById,
+    updateMarketingPlanStatus,
 } from '@/lib/firestore';
 import { uploadBrandAssetImage, resolveImageUrlForFirestore } from '@/lib/storage';
 import { GoogleGenAI } from '@google/genai';
@@ -238,12 +240,24 @@ export async function fetchBrandAssetsAction(
     return fetchBrandAssets(brandId);
 }
 
+export type KanbanTaskStatus = 'draft' | 'pending' | 'in_progress' | 'done';
+
 /**
  * Fetches all kanban tasks (marketing plans) for a given brand, newest first.
  */
 export async function fetchKanbanTasksAction(
     brandId: string
-): Promise<Array<{ id: string; title: string; platform: string; priority: 'high' | 'medium' | 'low'; description: string }>> {
+): Promise<Array<{
+    id: string;
+    title: string;
+    platform: string;
+    priority: 'high' | 'medium' | 'low';
+    description: string;
+    image_url?: string;
+    caption?: string;
+    tags?: string[];
+    status: KanbanTaskStatus;
+}>> {
     const plans = await fetchMarketingPlans(brandId);
     return plans.map((row) => ({
         id: row.id,
@@ -251,28 +265,93 @@ export async function fetchKanbanTasksAction(
         platform: row.platform || 'Multi-channel',
         priority: (row.priority as 'high' | 'medium' | 'low') || 'medium',
         description: row.description || '',
+        image_url: row.image_url,
+        caption: row.caption,
+        tags: row.tags,
+        status: (row.status as KanbanTaskStatus) || 'draft',
     }));
 }
 
 /**
- * Creates a marketing plan task in the kanban (marketing_plans collection).
+ * Generates an engaging social media caption from an image prompt.
+ * The image prompt is technical; the caption should be post copy for the platform.
  */
+async function generateSocialCaption(
+    imagePrompt: string,
+    platform: string
+): Promise<string> {
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{
+            role: 'user',
+            parts: [{
+                text: `You are a social media copywriter. Given this technical image description used to generate a visual, write a short, engaging caption (1-2 sentences) for a ${platform} post. The caption should NOT repeat the technical prompt—write actual post copy that would accompany the image (call-to-action, hook, or brand message). Output only the caption, no quotes or preamble.
+
+Image description:
+${imagePrompt}`,
+            }],
+        }],
+    });
+    const caption = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    return caption || imagePrompt.slice(0, 160);
+}
+
 export async function createKanbanTaskAction(
     brandId: string,
     title: string,
     platform: string,
     priority: 'high' | 'medium' | 'low',
-    description: string
-): Promise<MarketingPlan> {
+    description: string,
+    options?: {
+        asset_id?: string;
+        image_url?: string;
+        caption?: string;
+        prompt_for_caption?: string;
+        tags?: string[];
+        status?: KanbanTaskStatus;
+    }
+): Promise<MarketingPlan & { id: string }> {
     await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
+
+    let imageUrl = options?.image_url;
+    let assetPrompt: string | undefined;
+    if (options?.asset_id && !imageUrl) {
+        const asset = await getBrandAssetById(brandId, options.asset_id);
+        if (asset) {
+            imageUrl = asset.image_url;
+            assetPrompt = asset.prompt;
+        }
+    }
+
+    let caption = options?.caption?.trim();
+    const promptForCaption = options?.prompt_for_caption?.trim() || assetPrompt;
+    if ((!caption || caption.length < 10) && promptForCaption && (imageUrl || options?.asset_id)) {
+        caption = await generateSocialCaption(promptForCaption, platform);
+    }
+
     const result = await insertMarketingPlan(brandId, {
         title,
         platform,
         priority,
         description,
+        image_url: imageUrl,
+        caption: caption || undefined,
+        tags: options?.tags,
+        status: options?.status ?? 'draft',
     });
     if (!result) {
         throw new Error('Failed to create kanban task');
     }
     return result;
+}
+
+/**
+ * Updates a kanban task's status.
+ */
+export async function updateKanbanTaskStatusAction(
+    brandId: string,
+    taskId: string,
+    status: KanbanTaskStatus
+): Promise<boolean> {
+    return updateMarketingPlanStatus(brandId, taskId, status);
 }

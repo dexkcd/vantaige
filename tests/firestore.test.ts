@@ -14,19 +14,39 @@ vi.mock('firebase-admin/firestore', () => {
         exists: !!data,
         data: () => data || {},
     });
+    class MockTimestamp {
+        constructor(private d?: Date) {}
+        toDate() {
+            return this.d ?? new Date();
+        }
+    }
+    const collections: Record<string, Array<{ id: string; data: Record<string, unknown> }>> = {};
     const mockCollection = (name: string) => {
-        const docs: Array<{ id: string; data: Record<string, unknown> }> = [];
+        if (!collections[name]) collections[name] = [];
+        const docs = collections[name];
         return {
             doc: (id: string) => ({
                 get: vi.fn().mockResolvedValue(mockDoc(id, docs.find((d) => d.id === id)?.data ?? null)),
                 set: vi.fn().mockImplementation(async (data: Record<string, unknown>) => {
-                    docs.push({ id, data: { ...data, created_at: { toDate: () => new Date() } } });
+                    const existing = docs.findIndex((d) => d.id === id);
+                    const entry = { id, data: { ...data } };
+                    if (existing >= 0) docs[existing] = entry;
+                    else docs.push(entry);
+                }),
+                update: vi.fn().mockImplementation(async (data: Record<string, unknown>) => {
+                    const idx = docs.findIndex((d) => d.id === id);
+                    if (idx >= 0) docs[idx] = { id, data: { ...docs[idx]?.data, ...data } };
                 }),
             }),
-            add: vi.fn().mockImplementation(async (data: Record<string, unknown>) => ({
-                id: `mock-${Math.random().toString(36).slice(2)}`,
-                get: vi.fn().mockResolvedValue(mockDoc('mock-id', { ...data, created_at: { toDate: () => new Date() } })),
-            })),
+            add: vi.fn().mockImplementation(async (data: Record<string, unknown>) => {
+                const id = `mock-${Math.random().toString(36).slice(2)}`;
+                const docData = { ...data, created_at: new MockTimestamp() };
+                docs.push({ id, data: docData });
+                return {
+                    id,
+                    get: vi.fn().mockResolvedValue(mockDoc(id, docData)),
+                };
+            }),
             where: vi.fn().mockReturnThis(),
             orderBy: vi.fn().mockReturnThis(),
             limit: vi.fn().mockReturnThis(),
@@ -41,12 +61,9 @@ vi.mock('firebase-admin/firestore', () => {
     return {
         getFirestore: vi.fn(() => db),
         FieldValue: {
-            serverTimestamp: vi.fn(() => ({ _timestamp: true })),
+            serverTimestamp: vi.fn(() => new MockTimestamp()),
         },
-        Timestamp: {
-            fromDate: (d: Date) => d,
-            now: () => ({ toDate: () => new Date() }),
-        },
+        Timestamp: MockTimestamp,
     };
 });
 
@@ -54,7 +71,11 @@ vi.mock('firebase-admin/firestore', () => {
 import {
     getVibeProfile,
     upsertVibeProfile,
+    insertMarketingPlan,
+    updateMarketingPlanStatus,
+    getBrandAssetById,
     type VibeProfile,
+    type MarketingPlanStatus,
 } from '@/lib/firestore';
 
 describe('Firestore data layer', () => {
@@ -90,6 +111,38 @@ describe('Firestore data layer', () => {
             const result = await upsertVibeProfile(profile);
             // With mock, may return null or the merged result - we mainly verify no throw
             expect(typeof result === 'object' || result === null).toBe(true);
+        });
+    });
+
+    describe('insertMarketingPlan', () => {
+        it('accepts optional image_url, caption, tags, status', async () => {
+            const result = await insertMarketingPlan('brand-1', {
+                title: 'Social post',
+                platform: 'Instagram',
+                priority: 'high',
+                description: 'Post desc',
+                image_url: 'https://example.com/img.png',
+                caption: 'Great caption',
+                tags: ['launch', 'brand'],
+                status: 'draft' as MarketingPlanStatus,
+            });
+            expect(result).not.toBeNull();
+            expect(result?.title).toBe('Social post');
+            expect(result?.status).toBe('draft');
+        });
+    });
+
+    describe('updateMarketingPlanStatus', () => {
+        it('does not throw when called', async () => {
+            const result = await updateMarketingPlanStatus('brand-1', 'plan-1', 'in_progress');
+            expect(typeof result === 'boolean').toBe(true);
+        });
+    });
+
+    describe('getBrandAssetById', () => {
+        it('returns null when document does not exist', async () => {
+            const result = await getBrandAssetById('brand-1', 'nonexistent-asset');
+            expect(result).toBeNull();
         });
     });
 });

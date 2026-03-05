@@ -91,6 +91,8 @@ export interface BrandAsset {
     created_at: string;
 }
 
+export type MarketingPlanStatus = 'draft' | 'pending' | 'in_progress' | 'done';
+
 export interface MarketingPlan {
     id: string;
     brand_id: string;
@@ -98,6 +100,10 @@ export interface MarketingPlan {
     platform?: string;
     priority?: 'high' | 'medium' | 'low';
     description?: string;
+    image_url?: string;
+    caption?: string;
+    tags?: string[];
+    status: MarketingPlanStatus;
     created_at: string;
 }
 
@@ -240,6 +246,10 @@ export async function fetchMarketingPlans(brandId: string): Promise<MarketingPla
                 platform: d.platform,
                 priority: (d.priority as 'high' | 'medium' | 'low') ?? undefined,
                 description: d.description,
+                image_url: d.image_url,
+                caption: d.caption,
+                tags: d.tags as string[] | undefined,
+                status: (d.status as MarketingPlanStatus) ?? 'draft',
                 created_at: toIsoString(d.created_at as Timestamp) ?? '',
             };
         });
@@ -256,17 +266,27 @@ export async function insertMarketingPlan(
         platform: string;
         priority: 'high' | 'medium' | 'low';
         description: string;
+        image_url?: string;
+        caption?: string;
+        tags?: string[];
+        status?: MarketingPlanStatus;
     }
 ): Promise<MarketingPlan | null> {
     try {
-        const ref = await db.collection('marketing_plans').add({
+        const payload: Record<string, unknown> = {
             brand_id: brandId,
             title: data.title,
             platform: data.platform,
             priority: data.priority,
             description: data.description,
+            status: data.status ?? 'draft',
             created_at: FieldValue.serverTimestamp(),
-        });
+        };
+        if (data.image_url != null) payload.image_url = data.image_url;
+        if (data.caption != null) payload.caption = data.caption;
+        if (data.tags != null) payload.tags = data.tags;
+
+        const ref = await db.collection('marketing_plans').add(payload);
         const doc = await ref.get();
         const d = doc.data()!;
         return {
@@ -276,6 +296,10 @@ export async function insertMarketingPlan(
             platform: d.platform,
             priority: (d.priority as 'high' | 'medium' | 'low') ?? undefined,
             description: d.description,
+            image_url: d.image_url,
+            caption: d.caption,
+            tags: d.tags as string[] | undefined,
+            status: (d.status as MarketingPlanStatus) ?? 'draft',
             created_at: toIsoString(d.created_at as Timestamp) ?? '',
         };
     } catch (error) {
@@ -284,9 +308,51 @@ export async function insertMarketingPlan(
     }
 }
 
+export async function updateMarketingPlanStatus(
+    brandId: string,
+    planId: string,
+    status: MarketingPlanStatus
+): Promise<boolean> {
+    try {
+        const ref = db.collection('marketing_plans').doc(planId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        await ref.update({ status });
+        return true;
+    } catch (error) {
+        logFirestoreError('updating marketing plan status', error);
+        return false;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Brand Assets
 // ---------------------------------------------------------------------------
+
+export async function getBrandAssetById(
+    brandId: string,
+    assetId: string
+): Promise<BrandAsset | null> {
+    try {
+        const doc = await db.collection('brand_assets').doc(assetId).get();
+        if (!doc.exists) return null;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return null;
+        return {
+            id: doc.id,
+            brand_id: d.brand_id,
+            prompt: d.prompt ?? '',
+            image_url: d.image_url ?? '',
+            status: d.status ?? 'done',
+            created_at: toIsoString(d.created_at as Timestamp) ?? '',
+        };
+    } catch (error) {
+        logFirestoreError('fetching brand asset by id', error);
+        return null;
+    }
+}
 
 export async function insertBrandAsset(
     brandId: string,
