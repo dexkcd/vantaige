@@ -15,7 +15,7 @@ const setupMessage = {
             responseModalities: ["AUDIO"]
         },
         systemInstruction: {
-            parts: [{ text: `You are vantAIge.` }]
+            parts: [{ text: `You are VantAIge.` }]
         },
         tools: [
             {

@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, PlusCircle, ImageIcon, RefreshCw } from 'lucide-react';
+import { APP_NAME } from '@/lib/branding';
 
 export interface BrandAsset {
     id: string;
@@ -18,7 +19,7 @@ interface LaunchPackSidebarProps {
 
 export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }: LaunchPackSidebarProps) {
     return (
-        <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
+        <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 sm:p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
             <h2 className="text-xl font-semibold mb-1 flex justify-between items-center">
                 Launch Pack
                 <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">
@@ -39,7 +40,7 @@ export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }:
                             <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-neutral-700 mb-4 flex items-center justify-center">
                                 <ImageIcon size={24} className="text-neutral-600" />
                             </div>
-                            <p className="text-sm">vantAIge will generate brand assets here during your session.</p>
+                            <p className="text-sm">{APP_NAME} will generate brand assets here during your session.</p>
                         </motion.div>
                     ) : (
                         assets.map((asset) => (

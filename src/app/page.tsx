@@ -26,6 +26,8 @@ import {
 } from './actions/memory';
 import { compressBase64Image } from '@/lib/compressImage';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
+import { APP_NAME, APP_TAGLINE } from '@/lib/branding';
+import { DASHBOARD_MAIN_LAYOUT_CLASS } from '@/lib/layoutClasses';
 
 function toDisplayUrl(imageUrl: string | undefined): string | undefined {
   if (!imageUrl) return undefined;
@@ -208,7 +210,7 @@ export default function Dashboard() {
       systemInstruction: {
         parts: [
           {
-            text: `You are vantAIge, a proactive Marketing Director. The user can share their screen OR turn on their camera — you receive one at a time, never both mixed. When they share screen, you see their screen (Figma, websites, decks). When they turn on camera, you see their camera (physical product, packaging, etc.).
+            text: `You are ${APP_NAME}, a proactive Marketing Director. The user can share their screen OR turn on their camera — you receive one at a time, never both mixed. When they share screen, you see their screen (Figma, websites, decks). When they turn on camera, you see their camera (physical product, packaging, etc.).
 
 PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream. If the screen-share (designs, mockups) or camera feed (physical products) shows anything that contradicts the saved Vibe Profile — wrong brand colors, inconsistent typography, off-brand imagery — interrupt and deliver a concise correction. Example: "I notice that blue on your Figma mockup doesn't match the electric indigo in your Vibe Profile — want me to flag the exact HEX?"
 
@@ -883,23 +885,23 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
   // Session choice / pre-connect UI
   if (sessionPhase === 'choose' || sessionPhase === 'new' || sessionPhase === 'continue') {
     return (
-      <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 selection:bg-indigo-500/30 flex flex-col items-center justify-center">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">vantAIge</h1>
-        <p className="text-neutral-400 text-sm mb-10">Multimodal Marketing Director</p>
+      <div className="min-h-dvh bg-neutral-950 text-neutral-100 font-sans p-4 sm:p-6 selection:bg-indigo-500/30 flex flex-col items-center justify-center">
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">{APP_NAME}</h1>
+        <p className="text-neutral-400 text-sm mb-8 sm:mb-10 text-center">{APP_TAGLINE}</p>
 
         {sessionPhase === 'choose' && (
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex w-full max-w-md flex-col sm:flex-row gap-4">
             <button
               onClick={handleNewSession}
               disabled={isCreatingSession}
-              className="px-8 py-4 rounded-2xl bg-white text-black font-medium hover:bg-neutral-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full px-8 py-4 rounded-2xl bg-white text-black font-medium hover:bg-neutral-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isCreatingSession ? <Loader2 size={20} className="animate-spin" /> : <Play size={20} />}
               New Session
             </button>
             <button
               onClick={() => setSessionPhase('continue')}
-              className="px-8 py-4 rounded-2xl bg-neutral-800 border border-neutral-700 text-white font-medium hover:bg-neutral-700 transition-all"
+              className="w-full px-8 py-4 rounded-2xl bg-neutral-800 border border-neutral-700 text-white font-medium hover:bg-neutral-700 transition-all"
             >
               Continue Session
             </button>
@@ -910,7 +912,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-md text-center"
+            className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center"
           >
             <p className="text-neutral-400 mb-2">Your session passcode</p>
             <div className="flex items-center justify-center gap-2 mb-4">
@@ -938,7 +940,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-md"
+            className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 max-w-md w-full"
           >
             <p className="text-neutral-400 mb-3">Enter your passcode</p>
             <input
@@ -974,14 +976,14 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 selection:bg-indigo-500/30">
-      <header className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-800">
+    <div className="min-h-dvh bg-neutral-950 text-neutral-100 font-sans p-4 sm:p-6 selection:bg-indigo-500/30">
+      <header className="mb-6 sm:mb-8 pb-4 border-b border-neutral-800 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">vantAIge</h1>
-          <p className="text-neutral-400 text-sm mt-1">Multimodal Marketing Director</p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">{APP_NAME}</h1>
+          <p className="text-neutral-400 text-sm mt-1">{APP_TAGLINE}</p>
         </div>
 
-        <div className="flex gap-4 items-center">
+        <div className="flex flex-wrap gap-3 sm:gap-4 items-center xl:justify-end">
           {/* VantAIge is Thinking indicator */}
           <AnimatePresence>
             {isToolPending && (
@@ -991,7 +993,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                 animate={{ opacity: 1, scale: 1, x: 0 }}
                 exit={{ opacity: 0, scale: 0.85, x: 10 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs sm:text-sm"
               >
                 <motion.div
                   animate={{ scale: [1, 1.25, 1] }}
@@ -999,7 +1001,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                 >
                   <Cpu size={15} className="text-indigo-400" />
                 </motion.div>
-                <span className="font-medium">vantAIge is Thinking</span>
+                <span className="font-medium">{APP_NAME} is thinking</span>
                 <span className="flex gap-0.5">
                   {[0, 1, 2].map(i => (
                     <motion.span
@@ -1017,20 +1019,20 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           <div className="flex bg-neutral-900 rounded-full p-1 border border-neutral-800 gap-1">
             <button
               onClick={isScreenSharing ? stopScreenShare : startScreenShare}
-              className={`p-3 rounded-full transition-all duration-300 ${isScreenSharing ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
+              className={`p-2.5 sm:p-3 rounded-full transition-all duration-300 ${isScreenSharing ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
               title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
             >
               <Monitor size={20} />
             </button>
             <button
               onClick={isCameraOn ? stopCamera : startCamera}
-              className={`p-3 rounded-full transition-all duration-300 ${isCameraOn ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
+              className={`p-2.5 sm:p-3 rounded-full transition-all duration-300 ${isCameraOn ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
               title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
             >
               {isCameraOn ? <Video size={20} /> : <VideoOff size={20} />}
             </button>
             <button
-              className={`p-3 rounded-full transition-all duration-300 ${isRecording ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-500'}`}
+              className={`p-2.5 sm:p-3 rounded-full transition-all duration-300 ${isRecording ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-500'}`}
               title="Status of Mic (Managed by Connection)"
               disabled
             >
@@ -1051,7 +1053,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           <button
             onClick={() => (isConnected ? disconnectAPI() : connectAPI())}
             disabled={isConnecting}
-            className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all duration-300
+            className={`flex w-full sm:w-auto justify-center items-center gap-2 px-5 sm:px-6 py-3 rounded-full font-medium transition-all duration-300
               ${isConnecting ? 'bg-neutral-800 text-neutral-400 cursor-not-allowed' :
                 isConnected ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/20' :
                   'bg-white text-black hover:bg-neutral-200 shadow-lg shadow-white/10'}`}
@@ -1070,7 +1072,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-neutral-800 bg-neutral-900/80 px-5 py-3 text-neutral-300 backdrop-blur-sm"
+            className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-neutral-800 bg-neutral-900/80 px-4 sm:px-5 py-3 text-neutral-300 backdrop-blur-sm"
           >
           <span className="text-sm">Start conversation when you&apos;re ready</span>
           <button
@@ -1084,10 +1086,10 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         )}
       </AnimatePresence>
 
-      <main className="grid grid-cols-12 gap-6 h-[calc(100vh-140px)]">
+      <main className={DASHBOARD_MAIN_LAYOUT_CLASS}>
         {/* Pane 1: Live Feed + Vibe + History */}
-        <section className="col-span-12 lg:col-span-4 h-full flex flex-col gap-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-4 flex-shrink-0 flex flex-col relative overflow-hidden group shadow-2xl" style={{ height: '280px' }}>
+        <section className="col-span-12 lg:col-span-4 lg:h-full flex flex-col gap-4 min-h-0">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-4 flex-shrink-0 flex flex-col relative overflow-hidden group shadow-2xl h-[240px] sm:h-[280px] lg:h-[300px]">
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
               Live Feed
@@ -1105,7 +1107,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             <video ref={videoRefScreen} className="hidden" muted playsInline />
           </div>
 
-          <div className={`bg-neutral-900 border ${isPulsing ? 'border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.3)] scale-[1.02]' : 'border-neutral-800'} rounded-3xl p-5 flex-shrink-0 h-36 transition-all duration-500`}>
+          <div className={`bg-neutral-900 border ${isPulsing ? 'border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.3)] scale-[1.02]' : 'border-neutral-800'} rounded-3xl p-5 flex-shrink-0 min-h-36 transition-all duration-500`}>
             <h3 className="text-sm text-neutral-400 mb-2 uppercase tracking-wider font-semibold flex items-center justify-between">
               Active Vibe Profile
               {isPulsing && <span className="text-pink-400 text-xs normal-case animate-pulse">Memory Updated</span>}
@@ -1156,7 +1158,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           </div>
 
           {/* Session History */}
-          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
+          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 lg:flex-1 min-h-[260px] lg:overflow-hidden flex flex-col backdrop-blur-sm">
             <h3 className="text-sm text-neutral-400 mb-4 uppercase tracking-wider font-semibold flex items-center justify-between">
               Session History
               {isSummarizing && <Loader2 size={14} className="animate-spin text-indigo-400" />}
@@ -1188,7 +1190,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         </section>
 
         {/* Pane 2: Strategy Kanban */}
-        <section className="col-span-12 md:col-span-6 lg:col-span-4 h-full bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-6 backdrop-blur-sm overflow-hidden flex flex-col">
+        <section className="col-span-12 md:col-span-6 lg:col-span-4 lg:h-full bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 sm:p-6 backdrop-blur-sm lg:overflow-hidden flex flex-col min-h-[320px]">
           <h2 className="text-xl font-semibold mb-2">Strategy Flow</h2>
           <p className="text-xs text-neutral-500 mb-4">Roadmap tasks</p>
 
@@ -1198,7 +1200,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             <AnimatePresence mode="popLayout">
               {kanbanTasks.length === 0 ? (
                 <motion.div key="empty-tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-6">
-                  <p className="text-xs text-neutral-600 italic">vantAIge will add tasks to your roadmap here.</p>
+                  <p className="text-xs text-neutral-600 italic">{APP_NAME} will add tasks to your roadmap here.</p>
                 </motion.div>
               ) : (
                 kanbanTasks.map(task => (
@@ -1257,7 +1259,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         </section>
 
         {/* Pane 3: Launch Pack Sidebar (Images + Shorts) */}
-        <section className="col-span-12 md:col-span-6 lg:col-span-4 h-full flex flex-col">
+        <section className="col-span-12 md:col-span-6 lg:col-span-4 lg:h-full flex flex-col min-h-[320px]">
           <div className="flex gap-1 mb-3">
             <button
               type="button"
@@ -1420,9 +1422,9 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       </AnimatePresence>
 
       {/* ── Debug Panel ─────────────────────────────────────────────────── */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+      <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-50 flex flex-col items-end gap-2 max-w-[calc(100vw-1rem)]">
         {showDebug && (
-          <div className="w-96 h-72 bg-neutral-950/95 border border-neutral-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-sm text-xs font-mono">
+          <div className="w-[calc(100vw-1.5rem)] sm:w-96 h-64 sm:h-72 bg-neutral-950/95 border border-neutral-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-sm text-xs font-mono">
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800 shrink-0">
               <span className="text-neutral-400 font-semibold tracking-wide">Debug Console</span>
