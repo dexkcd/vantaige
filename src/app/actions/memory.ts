@@ -21,7 +21,7 @@ import {
     insertSession,
     getSessionByPasscode,
 } from '@/lib/firestore';
-import { uploadBrandAssetImage, resolveImageUrlForFirestore, createSignedUrlForGcsPath } from '@/lib/storage';
+import { uploadBrandAssetImage, resolveImageUrlForFirestore, getProxyUrlForGcsPath } from '@/lib/storage';
 import { GoogleGenAI, GenerateVideosOperation, VideoGenerationReferenceType } from '@google/genai';
 import { randomUUID, randomBytes } from 'crypto';
 
@@ -550,7 +550,7 @@ export async function checkShortFormVideoStatusAction(
         return { status: 'error', error: 'No video in response' };
     }
 
-    const videoUrl = await createSignedUrlForGcsPath(gcsUri);
+    const videoUrl = getProxyUrlForGcsPath(gcsUri);
     await updateShortVideo(brandId, jobId, { video_url: videoUrl, status: 'done' });
     return { status: 'done', video_url: videoUrl };
 }

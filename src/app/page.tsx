@@ -1049,7 +1049,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             </button>
           )}
           <button
-            onClick={isConnected ? disconnectAPI : connectAPI}
+            onClick={() => (isConnected ? disconnectAPI() : connectAPI())}
             disabled={isConnecting}
             className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all duration-300
               ${isConnecting ? 'bg-neutral-800 text-neutral-400 cursor-not-allowed' :

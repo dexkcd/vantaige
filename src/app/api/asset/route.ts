@@ -9,16 +9,26 @@ import '@/lib/firestore'; // ensure Firebase app is initialized
 
 export async function GET(request: NextRequest) {
     const url = request.nextUrl.searchParams.get('url');
-    if (!url || typeof url !== 'string') {
-        return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
+    const uri = request.nextUrl.searchParams.get('uri');
+    const input = url || uri;
+    if (!input || typeof input !== 'string') {
+        return NextResponse.json({ error: 'Missing url or uri parameter' }, { status: 400 });
     }
 
-    const match = url.match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/([^/]+)\/o\/([^?]+)/);
-    if (!match) {
-        return NextResponse.json({ error: 'Invalid Firebase Storage URL' }, { status: 400 });
+    let bucketName: string;
+    let path: string;
+
+    const firebaseMatch = input.match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/([^/]+)\/o\/([^?]+)/);
+    const gcsMatch = input.match(/^gs:\/\/([^/]+)\/(.+)$/);
+
+    if (firebaseMatch) {
+        [, bucketName, path] = firebaseMatch;
+        path = decodeURIComponent(path);
+    } else if (gcsMatch) {
+        [, bucketName, path] = gcsMatch;
+    } else {
+        return NextResponse.json({ error: 'Invalid URL: expected firebasestorage or gs:// URI' }, { status: 400 });
     }
-    const [, bucketName, encodedPath] = match;
-    const path = decodeURIComponent(encodedPath);
 
     try {
         const bucket = getStorage().bucket(bucketName);
@@ -31,7 +41,8 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
         }
         const [metadata] = await file.getMetadata();
-        const contentType = metadata?.contentType || 'image/png';
+        const contentType = metadata?.contentType ||
+            (path.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'image/png');
         const nodeStream = file.createReadStream();
         const webStream = Readable.toWeb(nodeStream) as ReadableStream;
         return new NextResponse(webStream, {
