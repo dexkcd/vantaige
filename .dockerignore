@@ -1,0 +1,17 @@
+# Dependencies (reinstalled in container)
+node_modules
+.next
+backend
+tests
+.git
+.env*
+!.env.example
+secret
+*.md
+.DS_Store
+.cursor
+.vscode
+vitest.config.ts
+firestore
+.firebaserc
+firebase.json

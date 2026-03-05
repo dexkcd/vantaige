@@ -1,0 +1,33 @@
+# Dependencies and build artifacts (rebuilt in container)
+node_modules/
+.next/
+backend/.venv/
+backend/__pycache__/
+*.pyc
+
+# Git and IDE
+.git/
+.gitignore
+.cursor/
+.vscode/
+*.swp
+*.swo
+
+# Local env and secrets (never deploy)
+.env
+.env.*
+!.env.example
+secret/
+
+# Tests and dev tooling
+tests/
+vitest.config.ts
+*.test.*
+*.spec.*
+
+# Documentation (optional – remove if you want them in image)
+agent-transcripts/
+
+# Misc
+*.log
+.DS_Store

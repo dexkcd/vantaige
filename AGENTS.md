@@ -15,7 +15,7 @@ Welcome, Agent. This document provides the essential context, technical standard
 ## 🛠 Tech Stack
 - **Infrastructure**: Always prioritize solutions to use Google Cloud whenever possible 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
-- **Database / Auth**: [Supabase](https://supabase.com/)
+- **Database**: [Cloud Firestore](https://firebase.google.com/docs/firestore) (Firebase Admin SDK)
 - **AI Engine**: Google Gemini API (Multimodal Live / WebSockets)
 - **Gemini Models**: Always proritize using Gemini 3 models when choosing llm models *EXCEPT*: gemini-live-2.5-flash-native-audio
 - **Required Tech**: You are required to use gemini live api: https://ai.google.dev/gemini-api/docs/live?example=mic-stream
@@ -24,19 +24,19 @@ Welcome, Agent. This document provides the essential context, technical standard
 
 ## 🏗 Core Architecture
 - **Real-time Engine**: Uses WebSockets to connect directly to Gemini's Multimodal Live API.
-- **Memory Layer**: Server actions and Supabase hooks that fetch brand context (vibe profiles) before session initialization.
+- **Memory Layer**: Server actions and Firestore that fetch brand context (vibe profiles) before session initialization.
 - **Audio Processing**: `public/pcm-processor.js` handles client-side audio buffering and streaming.
 
 ## 📂 Project Structure (High-Level)
 - `src/app/`: Next.js App Router pages and layouts.
-- `src/lib/`: Core utilities (Supabase client, AI integration logic).
+- `src/lib/`: Core utilities (Firestore client, AI integration logic).
 - `public/`: Assets and WebWorker scripts (`pcm-processor.js`).
-- `supabase/`: Database schemas, migrations, and SQL setup scripts.
+- `firestore/`: Firestore indexes and setup documentation.
 
 ## 📜 Development Guidelines
 - **Always try to search for the latest documentation for the tools you are using.**
 - **Aesthetics First**: Every UI change must feel premium with non-marketers are primary users (smooth transitions, glassmorphism, curated HSL palettes).
-- **Communication**: Use `src/lib/supabase.ts` for all database interactions.
+- **Communication**: Use `src/lib/firestore.ts` for all database interactions.
 - **Process Memory**: Always check for existing "vibe profiles" before starting a new session.
 - **No Placeholders**: Use `generate_image` or actual assets; avoid generic placeholders.
 - **Always write tests for new features**: Never skip writing tests for new features. Tests should be written in the `tests/` directory and should be run using the `npm run test` command. 
@@ -46,7 +46,7 @@ Welcome, Agent. This document provides the essential context, technical standard
 ## ⚠️ Known Gotchas
 - **WebSocket Stability**: Ensure robust error handling for audio stream disconnections.
 - **Audio Constraints**: PCM processing is performance-sensitive; keep heavy logic off the main thread.
-- **Supabase Local Env**: Use `.env.local` for secrets; do not commit actual keys.
+- **Firestore Auth**: Use `.env.local` for secrets. Prefer `GOOGLE_APPLICATION_CREDENTIALS_JSON` (JSON string) for deployment; or `GOOGLE_APPLICATION_CREDENTIALS` (file path) for local dev. On Cloud Run, ADC works if no credential env is set.
 
 ---
-*Updated: 2026-02-26*
+*Updated: 2026-03-03*

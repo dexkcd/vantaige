@@ -1,6 +1,15 @@
 'use server';
 
-import { supabase } from '@/lib/supabase';
+import {
+    getVibeProfile,
+    upsertVibeProfile,
+    insertSessionLog,
+    fetchSessionLogs,
+    fetchMarketingPlans,
+    insertMarketingPlan,
+    insertBrandAsset,
+    fetchBrandAssets,
+} from '@/lib/firestore';
 import { GoogleGenAI } from '@google/genai';
 
 const ai = new GoogleGenAI({
@@ -27,39 +36,17 @@ export interface SessionLog {
 }
 
 export async function fetchVantAIgeContext(brandId: string) {
-    // Fetch Vibe Profile
-    const { data: vibeProfile } = await supabase
-        .from('vibe_profiles')
-        .select('*')
-        .eq('id', brandId)
-        .single();
-
-    // Fetch Session Logs (Last 3)
-    const { data: sessionLogs } = await supabase
-        .from('session_logs')
-        .select('*')
-        .eq('brand_id', brandId)
-        .order('created_at', { ascending: false })
-        .limit(3);
-
-    return { vibeProfile, sessionLogs: sessionLogs || [] };
+    const vibeProfile = await getVibeProfile(brandId);
+    const sessionLogs = await fetchSessionLogs(brandId, 3);
+    return { vibeProfile, sessionLogs };
 }
 
 export async function upsertVibeProfileAction(brandId: string, brandIdentity: string) {
-    const { data, error } = await supabase
-        .from('vibe_profiles')
-        .upsert(
-            { id: brandId, brand_identity: brandIdentity },
-            { onConflict: 'id' }
-        )
-        .select();
-
-    if (error) {
-        console.error('Error upserting vibe:', error);
+    const result = await upsertVibeProfile({ id: brandId, brand_identity: brandIdentity });
+    if (!result) {
         throw new Error('Failed to update vibe profile');
     }
-
-    return data[0];
+    return result;
 }
 
 export async function summarizeSessionAction(brandId: string, meetingNotes: string) {
@@ -81,21 +68,10 @@ export async function summarizeSessionAction(brandId: string, meetingNotes: stri
         const summary = response.candidates?.[0]?.content?.parts?.[0]?.text || 'Session was active but yielded no specific decisions.';
         console.log(`Generated Summary: ${summary}`);
 
-        // 2. Save to Supabase (Ensure brand exists first)
-        await supabase.from('vibe_profiles').upsert({ id: brandId, brand_identity: 'Default' }, { onConflict: 'id' });
-
-        const { error } = await supabase
-            .from('session_logs')
-            .insert({
-                brand_id: brandId,
-                summary: summary
-            });
-
-        if (error) {
-            console.error('Failed to log session:', error);
-            return false;
-        }
-
+        // 2. Save to Firestore (Ensure brand exists first)
+        await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
+        const ok = await insertSessionLog(brandId, summary);
+        if (!ok) return false;
         return true;
     } catch (error) {
         console.error('Summarization Error:', error);
@@ -109,34 +85,19 @@ export async function summarizeSessionAction(brandId: string, meetingNotes: stri
  */
 export async function getCrossSessionTrendAnalysisAction(brandId: string): Promise<string> {
     try {
-        const { data: vibeProfile } = await supabase
-            .from('vibe_profiles')
-            .select('brand_identity')
-            .eq('id', brandId)
-            .single();
-
-        const { data: sessionLogs } = await supabase
-            .from('session_logs')
-            .select('summary, created_at')
-            .eq('brand_id', brandId)
-            .order('created_at', { ascending: false })
-            .limit(15);
-
-        const { data: plans } = await supabase
-            .from('marketing_plans')
-            .select('title, platform, priority, created_at')
-            .eq('brand_id', brandId)
-            .order('created_at', { ascending: false })
-            .limit(20);
+        const vibeProfile = await getVibeProfile(brandId);
+        const sessionLogs = await fetchSessionLogs(brandId, 15);
+        const plans = await fetchMarketingPlans(brandId);
 
         const sessionsText =
-            (sessionLogs || [])
+            sessionLogs
                 .map((l, i) => `Session ${i + 1} (${new Date(l.created_at).toLocaleDateString()}): ${l.summary}`)
                 .join('\n\n') || 'No sessions yet.';
 
         const plansText =
-            (plans || [])
-                .map((p) => `- ${p.title} [${p.platform}] (${p.priority})`)
+            plans
+                .slice(0, 20)
+                .map((p) => `- ${p.title} [${p.platform ?? 'Multi-channel'}] (${p.priority ?? 'medium'})`)
                 .join('\n') || 'No roadmap tasks yet.';
 
         const prompt = `You are a strategic brand analyst. Given the following data for one brand, write a concise "Cross-Session Trend Analysis" (2–4 short paragraphs). Identify:
@@ -227,28 +188,19 @@ export async function generateBrandAssetAction(
 }
 
 /**
- * Saves a brand asset record (prompt + data URL) to Supabase.
+ * Saves a brand asset record (prompt + data URL) to Firestore.
  */
 export async function saveBrandAssetAction(
     brandId: string,
     prompt: string,
     dataUrl: string
 ): Promise<{ id: string }> {
-    await supabase
-        .from('vibe_profiles')
-        .upsert({ id: brandId, brand_identity: 'Default' }, { onConflict: 'id' });
-
-    const { data, error } = await supabase
-        .from('brand_assets')
-        .insert({ brand_id: brandId, prompt, image_url: dataUrl, status: 'done' })
-        .select('id')
-        .single();
-
-    if (error) {
-        console.error('Failed to save brand asset:', error);
+    await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
+    const result = await insertBrandAsset(brandId, prompt, dataUrl, 'done');
+    if (!result) {
         throw new Error('Failed to save brand asset');
     }
-    return data as { id: string };
+    return result;
 }
 
 /**
@@ -257,17 +209,7 @@ export async function saveBrandAssetAction(
 export async function fetchBrandAssetsAction(
     brandId: string
 ): Promise<Array<{ id: string; prompt: string; image_url: string; status: string; created_at: string }>> {
-    const { data, error } = await supabase
-        .from('brand_assets')
-        .select('*')
-        .eq('brand_id', brandId)
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error('Failed to fetch brand assets:', error);
-        return [];
-    }
-    return data || [];
+    return fetchBrandAssets(brandId);
 }
 
 /**
@@ -276,17 +218,8 @@ export async function fetchBrandAssetsAction(
 export async function fetchKanbanTasksAction(
     brandId: string
 ): Promise<Array<{ id: string; title: string; platform: string; priority: 'high' | 'medium' | 'low'; description: string }>> {
-    const { data, error } = await supabase
-        .from('marketing_plans')
-        .select('id, title, platform, priority, description')
-        .eq('brand_id', brandId)
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error('Failed to fetch kanban tasks:', error);
-        return [];
-    }
-    return (data || []).map((row) => ({
+    const plans = await fetchMarketingPlans(brandId);
+    return plans.map((row) => ({
         id: row.id,
         title: row.title,
         platform: row.platform || 'Multi-channel',
@@ -296,7 +229,7 @@ export async function fetchKanbanTasksAction(
 }
 
 /**
- * Creates or upserts a marketing plan task into the kanban (marketing_plans table).
+ * Creates a marketing plan task in the kanban (marketing_plans collection).
  */
 export async function createKanbanTaskAction(
     brandId: string,
@@ -305,21 +238,15 @@ export async function createKanbanTaskAction(
     priority: 'high' | 'medium' | 'low',
     description: string
 ): Promise<MarketingPlan> {
-    // Ensure the brand profile exists first (prevents FK violation)
-    await supabase
-        .from('vibe_profiles')
-        .upsert({ id: brandId, brand_identity: 'Default' }, { onConflict: 'id' });
-
-    const { data, error } = await supabase
-        .from('marketing_plans')
-        .insert({ brand_id: brandId, title, platform, priority, description })
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Failed to create kanban task:', error);
+    await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
+    const result = await insertMarketingPlan(brandId, {
+        title,
+        platform,
+        priority,
+        description,
+    });
+    if (!result) {
         throw new Error('Failed to create kanban task');
     }
-
-    return data as MarketingPlan;
+    return result;
 }

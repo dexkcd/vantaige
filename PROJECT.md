@@ -1,7 +1,7 @@
 # 🦅 VantAIge: The Strategic Brand Engine
 
 **Status**: Alpha / Active Development
-**Stack**: Next.js, Supabase, Gemini Multimodal Live via Vertex AI (WebSockets)
+**Stack**: Next.js, Cloud Firestore, Gemini Multimodal Live via Vertex AI (WebSockets)
 
 VantAIge is an AI-powered "Marketing Director" that combines real-time situational awareness (vision/audio) with a deep, persistent memory of brand identity (Vibe Profiles).
 
@@ -23,7 +23,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] Zero-Latency Hand-off (Syncing UI assets with voice)
 
 ### 3. 🧠 Strategic Brain (Memory Layer)
-- [x] **Vibe Profile (JSONB)**: Persistent brand DNA storage
+- [x] **Vibe Profile**: Persistent brand DNA storage (Firestore)
 - [x] Session Continuity: Recalling past decisions & palettes
 - [x] Real-time Updates: `upsert_vibe_profile` mid-call
 - [x] Cross-session trend analysis (Gemini analysis over session logs + roadmap)
@@ -45,13 +45,13 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - **Python backend (`backend/`)**  
   **Only** the WebSocket bridge to the Gemini Multimodal Live API. It forwards audio/video and client/setup messages; it does not run business logic or execute tools. Required for real-time voice/video.
 - **Next.js (frontend + server actions)**  
-  UI, Supabase (vibe profiles, session logs, assets, kanban), and **Gemini REST** for summarization and image generation. When the Live session returns a tool call (e.g. `generate_brand_asset`), the client calls these server actions and sends the result back over the same WebSocket to the backend → Gemini.  
+  UI, Firestore (vibe profiles, session logs, assets, kanban), and **Gemini REST** for summarization and image generation. When the Live session returns a tool call (e.g. `generate_brand_asset`), the client calls these server actions and sends the result back over the same WebSocket to the backend → Gemini.  
   So: Live API = Python; REST + DB = Next.js. Two places configure Gemini (backend for Live, server actions for REST) by design.
 
 ### Data Flow
 1. **Input**: Client captures Audio (Mic) + Frames (Canvas)
 2. **Gateway**: Python backend (`backend/`) runs a WebSocket server and connects to Gemini via the google-genai SDK with Vertex AI (ADC auth). Set `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and `NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws`. Run `cd backend && uvicorn main:app --reload --port 8000`.
-3. **Context**: Server Action fetches `vibe_profile` from Supabase and injects it into the `setup` message
+3. **Context**: Server Action fetches `vibe_profile` from Firestore and injects it into the `setup` message
 4. **Brain**: Gemini processes multimodal stream + tools (Search, Image Gen)
 5. **Output**: Real-time audio + tool-call responses to update UI/DB
 
@@ -59,7 +59,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - `backend/main.py`: WebSocket bridge (Live API session per client); `backend/config.py`: setup → SDK config mapping
 - `server.js`: HTTP server for Next.js (no WebSocket; use Python backend for Live API)
 - `src/app/page.tsx`: The main "Studio" UI & stream management
-- `src/lib/supabase.ts`: Database client & schema helpers
+- `src/lib/firestore.ts`: Database client & Firestore collections
 - `public/pcm-processor.js`: Low-level audio handling
 
 ## 📜 Agent Guidelines
@@ -77,10 +77,53 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 3.  Add the tool's output handler in the client-side `onMessage` loop.
 
 ### Modifying the Memory Layer
-1.  Check the Supabase schema in `supabase/` (usually managed via SQL scripts).
-2.  Update the `vibe_profile` JSONB structure in `src/lib/supabase.ts`.
-3.  Ensure `upsert_vibe_profile` is called when significant brand decisions are made.
+1.  Check the Firestore schema in `firestore/` and `src/lib/firestore.ts`.
+2.  Update the `VibeProfile` interface in `src/lib/firestore.ts` if needed.
+3.  Ensure `upsertVibeProfile` is called when significant brand decisions are made.
+
+---
+
+## ☁️ Deployment (Google Cloud Run)
+
+VantAIge deploys as two Cloud Run services: the Next.js web app and the Python WebSocket bridge.
+
+### Prerequisites
+- [gcloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated
+- Google Cloud project with billing enabled
+- APIs enabled: `run.googleapis.com`, `cloudbuild.googleapis.com`
+
+### Deploy
+```bash
+# From project root; uses GOOGLE_CLOUD_PROJECT from .env.local by default
+./scripts/deploy-cloud-run.sh
+```
+
+Or manually:
+
+1. **WebSocket backend** (deploy first to get URL):
+   ```bash
+   cd backend && gcloud run deploy vantaige-ws --source . --region us-central1 --allow-unauthenticated
+   ```
+
+2. **Next.js app** (needs WebSocket URL for `NEXT_PUBLIC_WS_URL` at build time):
+   ```bash
+   gcloud builds submit --config=cloudbuild-web.yaml --substitutions="_WS_URL=wss://YOUR-WS-URL/ws,_REGION=us-central1"
+   gcloud run deploy vantaige --image gcr.io/PROJECT_ID/vantaige:SHORT_SHA --region us-central1 --allow-unauthenticated
+   ```
+
+### Environment
+- **Build-time** (baked into Next.js): `NEXT_PUBLIC_WS_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **Runtime**: `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (set by deploy script)
+- **Credentials**: Use `GOOGLE_APPLICATION_CREDENTIALS_JSON` (full JSON string) for secure deployment—no credential files. Store in Secret Manager and reference from Cloud Run. If unset, Cloud Run uses Application Default Credentials (default service account).
+
+### IAM
+If Firestore or Vertex AI fail, grant the Cloud Run service account:
+```bash
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+  --role="roles/datastore.user"
+```
 
 ---
 *Reference: See [AGENTS.md](AGENTS.md) for detailed coding standards and workflow details.*
-*Last Updated: 2026-02-28*
+*Last Updated: 2026-03-05*

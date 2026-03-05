@@ -3,6 +3,9 @@ VantAIge Live API WebSocket bridge.
 Connects the Next.js frontend to the Gemini Multimodal Live API via the google-genai SDK.
 Supports either Vertex AI (ADC) or Gemini API (API key).
 See: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api
+
+Credentials: Use GOOGLE_APPLICATION_CREDENTIALS_JSON (JSON string) for secure deployment
+instead of a file path. On Cloud Run, ADC works automatically with the default service account.
 """
 import asyncio
 import base64
@@ -14,6 +17,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from google import genai
 from google.genai import types
+from google.oauth2 import service_account
 
 from config import setup_to_live_config
 
@@ -29,15 +33,33 @@ GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
 GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 
 
+def _get_vertex_credentials():
+    """Load credentials from JSON string (preferred for secure deployment) or fall back to ADC."""
+    json_str = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON") or os.environ.get(
+        "FIREBASE_SERVICE_ACCOUNT_KEY"
+    )
+    if json_str and json_str.strip().startswith("{"):
+        info = json.loads(json_str)
+        return service_account.Credentials.from_service_account_info(
+            info,
+            scopes=["https://www.googleapis.com/auth/cloud-platform", "https://www.googleapis.com/auth/generative-language"],
+        )
+    return None
+
+
 def get_client() -> genai.Client:
     """Use Vertex AI if GOOGLE_CLOUD_PROJECT is set, otherwise Gemini API (API key)."""
     if GOOGLE_CLOUD_PROJECT:
         logger.info("Using Vertex AI (project=%s, location=%s)", GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION)
-        return genai.Client(
-            vertexai=True,
-            project=GOOGLE_CLOUD_PROJECT,
-            location=GOOGLE_CLOUD_LOCATION,
-        )
+        creds = _get_vertex_credentials()
+        client_kw = {
+            "vertexai": True,
+            "project": GOOGLE_CLOUD_PROJECT,
+            "location": GOOGLE_CLOUD_LOCATION,
+        }
+        if creds:
+            client_kw["credentials"] = creds
+        return genai.Client(**client_kw)
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError(
