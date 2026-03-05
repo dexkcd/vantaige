@@ -15,7 +15,7 @@ SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}"
 echo "Project: $PROJECT_ID, Region: $REGION"
 
 # Enable APIs
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project="$PROJECT_ID"
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com aiplatform.googleapis.com --project="$PROJECT_ID"
 
 # --- 1. Deploy WebSocket backend first ---
 echo "Deploying WebSocket backend (vantaige-ws)..."
@@ -33,7 +33,15 @@ WS_URL=$(gcloud run services describe vantaige-ws --region "$REGION" --project "
 WS_WS_URL="wss://${WS_URL#https://}/ws"
 echo "WebSocket URL: $WS_WS_URL"
 
-# --- 2. Deploy Next.js app via Cloud Build (for build-time NEXT_PUBLIC_* vars) ---
+# --- 2. Ensure Artifact Registry repo exists ---
+echo "Ensuring Artifact Registry repo..."
+gcloud artifacts repositories create cloud-run-source-deploy \
+  --repository-format=docker \
+  --location="$REGION" \
+  --project="$PROJECT_ID" \
+  2>/dev/null || true
+
+# --- 3. Deploy Next.js app via Cloud Build (for build-time NEXT_PUBLIC_* vars) ---
 cd "$ROOT_DIR"
 echo "Deploying Next.js app (vantaige)..."
 

@@ -112,7 +112,8 @@ function toIsoString(ts: Timestamp | FieldValue | undefined): string | undefined
 
 function isNotFoundError(err: unknown): boolean {
     const code = (err as { code?: number })?.code;
-    return code === 5 || (err as { message?: string })?.message?.includes('NOT_FOUND');
+    const msg = (err as { message?: string })?.message ?? '';
+    return code === 5 || msg.includes('NOT_FOUND');
 }
 
 function logFirestoreError(context: string, err: unknown): void {

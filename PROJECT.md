@@ -117,11 +117,29 @@ Or manually:
 - **Credentials**: Use `GOOGLE_APPLICATION_CREDENTIALS_JSON` (full JSON string) for secure deployment—no credential files. Store in Secret Manager and reference from Cloud Run. If unset, Cloud Run uses Application Default Credentials (default service account).
 
 ### IAM
-If Firestore or Vertex AI fail, grant the Cloud Run service account:
+**Cloud Build** (source deploy) – the Compute Engine default service account needs:
 ```bash
-gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
-  --role="roles/datastore.user"
+PROJECT_ID="vantaige-417aa"  # or your project
+SA="PROJECT_NUMBER-compute@developer.gserviceaccount.com"  # e.g. 923420874741-compute@...
+
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/run.builder"
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/storage.objectViewer"
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/artifactregistry.writer"  # for pushing images to Artifact Registry
+
+# Required for Cloud Build to deploy to Cloud Run (actAs permission)
+gcloud iam service-accounts add-iam-policy-binding $SA \
+  --member="serviceAccount:$SA" \
+  --role="roles/iam.serviceAccountUser" \
+  --project=$PROJECT_ID
+```
+
+**Cloud Run** – for Firestore, Vertex AI (Gemini), grant to the default compute SA:
+```bash
+PROJECT_ID="vantaige-417aa"  # or your project
+SA="923420874741-compute@developer.gserviceaccount.com"  # PROJECT_NUMBER-compute@...
+
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/datastore.user"
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/aiplatform.user"
 ```
 
 ---

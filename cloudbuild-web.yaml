@@ -1,5 +1,6 @@
 # Cloud Build for VantAIge Next.js
-# Substitutions: _WS_URL (wss://...), _SUPABASE_URL, _SUPABASE_ANON_KEY
+# Uses Artifact Registry (recommended over legacy gcr.io)
+# Substitutions: _WS_URL, _REGION, _SUPABASE_URL, _SUPABASE_ANON_KEY
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     id: build
@@ -12,13 +13,13 @@ steps:
       - '--build-arg'
       - 'NEXT_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON_KEY}'
       - '-t'
-      - 'gcr.io/${PROJECT_ID}/vantaige:${SHORT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/vantaige:${BUILD_ID}'
       - '.'
   - name: 'gcr.io/cloud-builders/docker'
     id: push
     args:
       - 'push'
-      - 'gcr.io/${PROJECT_ID}/vantaige:${SHORT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/vantaige:${BUILD_ID}'
     waitFor: ['build']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: deploy
@@ -28,7 +29,7 @@ steps:
       - 'deploy'
       - 'vantaige'
       - '--image'
-      - 'gcr.io/${PROJECT_ID}/vantaige:${SHORT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/vantaige:${BUILD_ID}'
       - '--region'
       - '${_REGION}'
       - '--platform'
@@ -43,7 +44,7 @@ substitutions:
   _SUPABASE_ANON_KEY: ''
 
 images:
-  - 'gcr.io/${PROJECT_ID}/vantaige:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/vantaige:${BUILD_ID}'
 
 options:
   logging: CLOUD_LOGGING_ONLY
