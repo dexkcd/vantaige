@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
 from google.oauth2 import service_account
 
 from config import setup_to_live_config
@@ -172,12 +173,26 @@ async def consumer(session, ws: WebSocket):
                     logger.warning("Consumer: error from Gemini: %s", msg.error)
                     await ws.send_json({"error": {"message": str(msg.error)}})
             logger.info("Consumer: receive() iterator ended, looping for next exchange")
+    except APIError as e:
+        # 1000 = Normal Closure (user disconnected, Cloud Run scaled down, deployment, etc.)
+        if getattr(e, "code", None) == 1000 or "cancelled" in str(e).lower():
+            logger.info("Consumer: session closed normally (1000): %s", e)
+        else:
+            logger.exception("Consumer APIError: %s", e)
+            try:
+                await ws.send_json({"error": {"code": 500, "message": str(e)}})
+            except Exception:
+                pass
     except Exception as e:
-        logger.exception("Consumer error: %s", e)
-        try:
-            await ws.send_json({"error": {"code": 500, "message": str(e)}})
-        except Exception:
-            pass
+        err_str = str(e).lower()
+        if "1000" in err_str or "connectionclosed" in err_str or "cancelled" in err_str:
+            logger.info("Consumer: connection closed: %s", e)
+        else:
+            logger.exception("Consumer error: %s", e)
+            try:
+                await ws.send_json({"error": {"code": 500, "message": str(e)}})
+            except Exception:
+                pass
 
 
 async def producer(session, ws: WebSocket):

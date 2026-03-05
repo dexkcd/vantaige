@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
-import { Mic, MicOff, Video, VideoOff, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   fetchVantAIgeContext,
@@ -16,6 +16,7 @@ import {
   fetchKanbanTasksAction,
   getCrossSessionTrendAnalysisAction,
 } from './actions/memory';
+import { compressBase64Image } from '@/lib/compressImage';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
 
 // Types
@@ -60,8 +61,7 @@ export default function Dashboard() {
   const [trendAnalysis, setTrendAnalysis] = useState<string | null>(null);
   const [isTrendLoading, setIsTrendLoading] = useState(false);
 
-  // Video feed: compositor can run (preview) but we don't send frames to Gemini until user turns this on
-  const [sendVideoToAgent, setSendVideoToAgent] = useState(false);
+  // Video is sent automatically when screen or camera is on (no separate toggle)
 
   // Debug log
   const [debugLogs, setDebugLogs] = useState<{ ts: string; type: string; msg: string }[]>([]);
@@ -128,13 +128,13 @@ export default function Dashboard() {
       systemInstruction: {
         parts: [
           {
-            text: `You are vantAIge, a proactive Marketing Director. You see the user's camera and screenshare simultaneously.
+            text: `You are vantAIge, a proactive Marketing Director. The user can share their screen OR turn on their camera — you receive one at a time, never both mixed. When they share screen, you see their screen (Figma, websites, decks). When they turn on camera, you see their camera (physical product, packaging, etc.).
 
-PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream at all times. If the user's screen-share (websites, Figma designs, decks) or webcam (physical product, packaging) shows any visual element that contradicts the saved Vibe Profile — such as wrong brand colors, inconsistent typography, or off-brand imagery — you MUST immediately interrupt and deliver a concise audio correction. Example: "I notice that blue on your Figma mockup doesn't match the electric indigo in your Vibe Profile — want me to flag the exact HEX to fix?"
+PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream. If the screen-share (designs, mockups) or camera feed (physical products) shows anything that contradicts the saved Vibe Profile — wrong brand colors, inconsistent typography, off-brand imagery — interrupt and deliver a concise correction. Example: "I notice that blue on your Figma mockup doesn't match the electric indigo in your Vibe Profile — want me to flag the exact HEX?"
 
 TOOLS:
 - finalize_marketing_strategy: Set the current strategy phase.
-- generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Use a rich, brand-aware prompt. When the user has the live feed on (camera/screenshare), you can request assets "based on what you see" or "from the screen" — the system will use the current frame to inform the image (e.g. product shot, Figma frame, or design on screen).
+- generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Use a rich, brand-aware prompt. When the user has screen share or camera on, you can request assets "based on what you see" — the system will use the current frame (screen or camera, whichever they have active).
 - create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description).
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
 - end_session: End the session when the user is done.
@@ -221,12 +221,10 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     if (micChunkCountRef.current === 1 || micChunkCountRef.current % 100 === 0) {
       dbg('audio', `🎤 Mic → Gemini: ${micChunkCountRef.current} chunks sent`);
     }
-    // #region agent log
-    if (micLogCountRef.current < 8) {
+    if (process.env.NODE_ENV === 'development' && micLogCountRef.current < 8) {
       micLogCountRef.current += 1;
       fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:handleAudioInput',message:'mic chunk sent',data:{sentSoFar:micChunkCountRef.current},timestamp:Date.now(),hypothesisId:'H1_H3'})}).catch(()=>{});
     }
-    // #endregion
   };
 
   const handleTextInput = (text: string) => {
@@ -245,21 +243,19 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
   const handleFrame = (base64Frame: string) => {
     latestFrameRef.current = base64Frame;
-    if (!sendVideoToAgent || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
     wsRef.current.send(JSON.stringify({
       realtimeInput: { mediaChunks: [{ mimeType: 'image/jpeg', data: base64Frame }] }
     }));
   };
 
-  const { isCapturing, startCompositor, stopCompositor, videoRefCamera, videoRefScreen, canvasRef } = useCompositor(handleFrame);
+  const { isCapturing, isScreenSharing, isCameraOn, startScreenShare, stopScreenShare, startCamera, stopCamera, stopCompositor, videoRefCamera, videoRefScreen, canvasRef } = useCompositor(handleFrame);
 
   const connectAPI = async () => {
     modelTurnCountRef.current = 0;
     micChunkCountRef.current = 0;
     micLogCountRef.current = 0;
-    // #region agent log
-    fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:connectAPI',message:'connectAPI called',data:{},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    if (process.env.NODE_ENV === 'development') fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:connectAPI',message:'connectAPI called',data:{},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
     setIsConnecting(true);
 
     // 1. Fetch Context
@@ -295,10 +291,8 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      // #region agent log
       const setupStr = JSON.stringify(injectedSetup);
-      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onopen',message:'sending setup',data:{setupLength:setupStr.length},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-      // #endregion
+      if (process.env.NODE_ENV === 'development') fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onopen',message:'sending setup',data:{setupLength:setupStr.length},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
       console.log('Connected to Proxy with Memory!');
       ws.send(setupStr);
       setIsConnected(true);
@@ -344,11 +338,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         const modelTurn = sc.modelTurn ?? (sc as any).model_turn;
         const turnComplete = sc.turnComplete ?? (sc as any).turn_complete;
         if (turnComplete) modelTurnCountRef.current += 1;
-        // #region agent log
-        if (turnComplete && modelTurnCountRef.current <= 3) {
-          fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:serverContent',message:'turnComplete',data:{turnIndex:modelTurnCountRef.current},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-        }
-        // #endregion
+        if (process.env.NODE_ENV === 'development' && turnComplete && modelTurnCountRef.current <= 3) fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:serverContent',message:'turnComplete',data:{turnIndex:modelTurnCountRef.current},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
 
         if (interrupted) {
           bargeIn();
@@ -420,40 +410,31 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       const knownKeys = ['serverContent', 'toolCall', 'setupComplete', 'error', 'usageMetadata'];
       const unknownKeys = Object.keys(data).filter(k => !knownKeys.includes(k));
       if (unknownKeys.length) dbg('raw', `❓ Unknown keys: ${unknownKeys.join(', ')} — ${JSON.stringify(data).slice(0, 120)}`);
-      // #region agent log
       const hasSetupComplete = !!(data.setupComplete ?? (data as any).setup_complete);
-      if (hasSetupComplete || Object.keys(data).some(k => k.toLowerCase().includes('setup'))) {
-        fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:onmessage',message:'setupComplete check',data:{hasSetupComplete,keys:Object.keys(data)},timestamp:Date.now(),hypothesisId:'H1_H2'})}).catch(()=>{});
-      }
-      // #endregion
+      if (process.env.NODE_ENV === 'development' && (hasSetupComplete || Object.keys(data).some(k => k.toLowerCase().includes('setup')))) fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:onmessage',message:'setupComplete check',data:{hasSetupComplete,keys:Object.keys(data)},timestamp:Date.now(),hypothesisId:'H1_H2'})}).catch(()=>{});
       if (data.setupComplete ?? (data as any).setup_complete) {
         isSetupCompleteRef.current = true; // Sync ref immediately so worklet callback sees it before next render
         setIsSetupComplete(true);
         dbg('ws', '⚙️ Setup acknowledged by Gemini');
-        fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:setupComplete',message:'setting isSetupComplete true',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+        if (process.env.NODE_ENV === 'development') fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:setupComplete',message:'setting isSetupComplete true',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
       }
     };
 
     ws.onerror = (e) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onerror',message:'WebSocket onerror',data:{type:typeof e},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
+      if (process.env.NODE_ENV === 'development') fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onerror',message:'WebSocket onerror',data:{type:typeof e},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
       console.error('WebSocket Error', e);
       dbg('error', `🔴 WebSocket error — check console`);
       setIsConnecting(false);
     };
 
     ws.onclose = (ev) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onclose',message:'WebSocket onclose',data:{code:ev.code,reason:ev.reason,wasClean:ev.wasClean},timestamp:Date.now(),hypothesisId:'H2_H3_H4'})}).catch(()=>{});
-      // #endregion
+      if (process.env.NODE_ENV === 'development') fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:ws.onclose',message:'WebSocket onclose',data:{code:ev.code,reason:ev.reason,wasClean:ev.wasClean},timestamp:Date.now(),hypothesisId:'H2_H3_H4'})}).catch(()=>{});
       dbg('ws', '🔌 Disconnected from Gemini proxy');
       setIsConnected(false);
       setIsToolPending(false);
       setIsSetupComplete(false);
       stopRecording();
       stopCompositor();
-      setSendVideoToAgent(false);
 
       if (sessionNotesRef.current.length >= 1) {
         setIsSummarizing(true);
@@ -502,11 +483,20 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       sessionNotesRef.current.push(`Generating brand asset: ${args.image_prompt}`);
 
       try {
-        const referenceFrame = isCapturing ? (latestFrameRef.current ?? undefined) : undefined;
-        const dataUrl = await generateBrandAssetAction(args.image_prompt, referenceFrame);
-        const saved = await saveBrandAssetAction(defaultBrandId, args.image_prompt, dataUrl);
+        let referenceFrame: string | undefined;
+        if (isCapturing && latestFrameRef.current) {
+          try {
+            referenceFrame = await compressBase64Image(latestFrameRef.current, 512, 0.6);
+          } catch {
+            referenceFrame = undefined;
+          }
+        }
+        const saved = await generateBrandAssetAction(args.image_prompt, defaultBrandId, referenceFrame);
+        const refreshed = await fetchBrandAssetsAction(defaultBrandId);
+        const newAssetData = refreshed.find(a => a.id === saved.id);
         setBrandAssets(prev =>
-          prev.map(a => a.id === assetId ? { ...a, id: saved.id, status: 'done', dataUrl } : a)
+          prev.map(a => a.id === assetId
+            ? { ...a, id: saved.id, status: 'done', dataUrl: newAssetData?.image_url } : a)
         );
         sendToolResponse(id, name, { success: true, asset_id: saved.id, message: 'Brand asset generated and saved to Launch Pack.' });
         sessionNotesRef.current.push(`Generated brand asset for: ${args.image_prompt}`);
@@ -561,10 +551,11 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       prev.map(a => a.id === asset.id ? { ...a, status: 'generating' as const, dataUrl: undefined } : a)
     );
     try {
-      const dataUrl = await generateBrandAssetAction(asset.prompt);
-      const saved = await saveBrandAssetAction(defaultBrandId, asset.prompt, dataUrl);
+      const saved = await generateBrandAssetAction(asset.prompt, defaultBrandId);
+      const refreshed = await fetchBrandAssetsAction(defaultBrandId);
+      const newAssetData = refreshed.find(a => a.id === saved.id);
       setBrandAssets(prev =>
-        prev.map(a => a.id === asset.id ? { ...a, id: saved.id, status: 'done' as const, dataUrl } : a)
+        prev.map(a => a.id === asset.id ? { ...a, id: saved.id, status: 'done' as const, dataUrl: newAssetData?.image_url } : a)
       );
     } catch (err) {
       console.error('Regeneration failed:', err);
@@ -633,23 +624,21 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             )}
           </AnimatePresence>
 
-          <div className="flex bg-neutral-900 rounded-full p-1 border border-neutral-800">
+          <div className="flex bg-neutral-900 rounded-full p-1 border border-neutral-800 gap-1">
             <button
-              onClick={isCapturing ? () => { stopCompositor(); setSendVideoToAgent(false); } : startCompositor}
-              className={`p-3 rounded-full transition-all duration-300 ${isCapturing ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
-              title="Toggle Compositor (Screen + Camera)"
+              onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+              className={`p-3 rounded-full transition-all duration-300 ${isScreenSharing ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
+              title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
             >
-              {isCapturing ? <Video size={20} /> : <VideoOff size={20} />}
+              <Monitor size={20} />
             </button>
-            {isCapturing && (
-              <button
-                onClick={() => setSendVideoToAgent((v) => !v)}
-                className={`p-3 rounded-full transition-all duration-300 ${sendVideoToAgent ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'text-neutral-500 hover:text-neutral-300'}`}
-                title={sendVideoToAgent ? 'Pause sending video to agent' : 'Send video to agent'}
-              >
-                {sendVideoToAgent ? 'Video on' : 'Video paused'}
-              </button>
-            )}
+            <button
+              onClick={isCameraOn ? stopCamera : startCamera}
+              className={`p-3 rounded-full transition-all duration-300 ${isCameraOn ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
+              title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+            >
+              {isCameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+            </button>
             <button
               className={`p-3 rounded-full transition-all duration-300 ${isRecording ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-500'}`}
               title="Status of Mic (Managed by Connection)"
@@ -702,7 +691,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               {!isCapturing && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-600 gap-3">
                   <VideoOff size={48} className="opacity-50" />
-                  <p>Compositor paused</p>
+                  <p>Share screen or turn on camera</p>
                 </div>
               )}
             </div>

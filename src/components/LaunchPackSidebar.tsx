@@ -19,10 +19,7 @@ interface LaunchPackSidebarProps {
 export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }: LaunchPackSidebarProps) {
     const handleDownload = (asset: BrandAsset) => {
         if (!asset.dataUrl) return;
-        const a = document.createElement('a');
-        a.href = asset.dataUrl;
-        a.download = `brand-asset-${asset.id}.png`;
-        a.click();
+        window.open(asset.dataUrl, '_blank', 'noopener,noreferrer');
     };
 
     return (

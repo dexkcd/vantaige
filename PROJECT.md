@@ -60,6 +60,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - `server.js`: HTTP server for Next.js (no WebSocket; use Python backend for Live API)
 - `src/app/page.tsx`: The main "Studio" UI & stream management
 - `src/lib/firestore.ts`: Database client & Firestore collections
+- `src/lib/storage.ts`: Brand asset image upload to Firebase Storage (avoids Firestore 1MB string limit)
 - `public/pcm-processor.js`: Low-level audio handling
 
 ## 📜 Agent Guidelines
@@ -133,13 +134,19 @@ gcloud iam service-accounts add-iam-policy-binding $SA \
   --project=$PROJECT_ID
 ```
 
-**Cloud Run** – for Firestore, Vertex AI (Gemini), grant to the default compute SA:
+**Cloud Run** – for Firestore (vibe profile, session logs), Vertex AI (Gemini summarization), and Firebase Storage (brand assets), grant to the runtime service account:
 ```bash
-PROJECT_ID="vantaige-417aa"  # or your project
-SA="923420874741-compute@developer.gserviceaccount.com"  # PROJECT_NUMBER-compute@...
+PROJECT_ID="vantaige-417aa"
+SA="923420874741-compute@developer.gserviceaccount.com"  # Default Cloud Run SA
 
+# Firestore read/write
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/datastore.user"
+
+# Vertex AI (Gemini) for summarization, image gen, etc.
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/aiplatform.user"
+
+# Firebase Storage for brand asset images (uploaded to gs://{projectId}.firebasestorage.app/brand-assets/)
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA" --role="roles/storage.objectAdmin"
 ```
 
 ---

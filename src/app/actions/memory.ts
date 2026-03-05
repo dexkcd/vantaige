@@ -10,13 +10,28 @@ import {
     insertBrandAsset,
     fetchBrandAssets,
 } from '@/lib/firestore';
+import { uploadBrandAssetImage, resolveImageUrlForFirestore } from '@/lib/storage';
 import { GoogleGenAI } from '@google/genai';
 
-const ai = new GoogleGenAI({
-    vertexai: true,
-    project: process.env.GOOGLE_CLOUD_PROJECT || '',
-    location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
-});
+function createGenAIClient() {
+    const opts = {
+        vertexai: true as const,
+        project: process.env.GOOGLE_CLOUD_PROJECT || '',
+        location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
+        ...(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON?.trim().startsWith('{')
+            ? {
+                  googleAuthOptions: {
+                      credentials: JSON.parse(
+                          process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON!
+                      ) as object,
+                  },
+              }
+            : {}),
+    };
+    return new GoogleGenAI(opts);
+}
+
+const ai = createGenAIClient();
 
 export interface MarketingPlan {
     id?: string;
@@ -132,30 +147,32 @@ Respond with only the analysis text, no preamble or headings.`;
     }
 }
 
+/** Max reference image size (chars) to avoid Server Action serialization limits */
+const MAX_REFERENCE_B64 = 120000;
+
 /**
- * Generates a brand asset image using Imagen 3 on Vertex AI (avoids Predict API).
- * If referenceImageBase64 (e.g. from the live feed) is provided, uses Gemini to derive
- * an image prompt from the reference + user prompt, then generates with Imagen.
- * Returns a base64-encoded PNG data URL.
+ * Generates a brand asset image using Imagen on Vertex AI, saves to Firestore,
+ * and returns only the asset ID. Avoids passing large base64 through Server Action
+ * (causes "Maximum array nesting exceeded").
+ * Reference image must be pre-compressed on client (see compressBase64Image).
  */
 export async function generateBrandAssetAction(
     prompt: string,
+    brandId: string,
     referenceImageBase64?: string
-): Promise<string> {
+): Promise<{ id: string }> {
     try {
         let imagePrompt = prompt;
-        if (referenceImageBase64) {
+        const refB64 = referenceImageBase64 && referenceImageBase64.length <= MAX_REFERENCE_B64
+            ? referenceImageBase64
+            : undefined;
+        if (refB64) {
             const visionResponse = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: [{
                     role: 'user',
                     parts: [
-                        {
-                            inlineData: {
-                                mimeType: 'image/jpeg',
-                                data: referenceImageBase64,
-                            },
-                        },
+                        { inlineData: { mimeType: 'image/jpeg', data: refB64 } },
                         {
                             text: `The user is asking for a brand asset. They said: "${prompt}". Based on what you see in the image (e.g. screen share, product, design, or camera view), write a single, detailed image generation prompt for an AI image model. Describe the scene or subject clearly and incorporate their request. Output only the prompt, no preamble.`,
                         },
@@ -169,18 +186,26 @@ export async function generateBrandAssetAction(
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-ultra-generate-001',
             prompt: imagePrompt,
-            config: {
-                numberOfImages: 1,
-                outputMimeType: 'image/png',
-            },
+            config: { numberOfImages: 1, outputMimeType: 'image/png' },
         });
 
-        const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+        const raw = response.generatedImages?.[0]?.image?.imageBytes;
+        const imageBytes = typeof raw === 'string' ? raw : (raw ? String(raw) : '');
         if (!imageBytes) {
             throw new Error('No image bytes returned from Imagen');
         }
 
-        return `data:image/png;base64,${imageBytes}`;
+        const imageUrl = await uploadBrandAssetImage(
+            brandId,
+            `data:image/png;base64,${imageBytes}`,
+            'image/png'
+        );
+        await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
+        const result = await insertBrandAsset(brandId, prompt, imageUrl, 'done');
+        if (!result) {
+            throw new Error('Failed to save brand asset');
+        }
+        return result;
     } catch (error) {
         console.error('Image generation error:', error);
         throw new Error('Failed to generate brand asset');
@@ -195,8 +220,9 @@ export async function saveBrandAssetAction(
     prompt: string,
     dataUrl: string
 ): Promise<{ id: string }> {
+    const imageUrl = await resolveImageUrlForFirestore(dataUrl, brandId);
     await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
-    const result = await insertBrandAsset(brandId, prompt, dataUrl, 'done');
+    const result = await insertBrandAsset(brandId, prompt, imageUrl, 'done');
     if (!result) {
         throw new Error('Failed to save brand asset');
     }

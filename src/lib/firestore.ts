@@ -52,6 +52,7 @@ function getFirestoreClient() {
         initializeApp({
             credential: cred,
             projectId: projectId || undefined,
+            storageBucket: projectId ? `${projectId}.firebasestorage.app` : undefined,
         });
 
         if (projectId && process.env.NODE_ENV !== 'production') {
