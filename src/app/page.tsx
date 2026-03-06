@@ -28,6 +28,7 @@ import { compressBase64Image } from '@/lib/compressImage';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
 import { APP_NAME, APP_TAGLINE } from '@/lib/branding';
 import { DASHBOARD_MAIN_LAYOUT_CLASS } from '@/lib/layoutClasses';
+import { shouldProcessToolCall } from '@/lib/toolCallDeduper';
 
 function toDisplayUrl(imageUrl: string | undefined): string | undefined {
   if (!imageUrl) return undefined;
@@ -119,6 +120,7 @@ export default function Dashboard() {
 
   // Dedupe tool calls: Gemini may send the same call in both modelTurn.parts and toolCall
   const processedToolCallIdsRef = useRef<Set<string>>(new Set());
+  const processedToolCallFingerprintsRef = useRef<Map<string, number>>(new Map());
 
   // Session management: passcode-based restore
   type SessionPhase = 'choose' | 'new' | 'continue' | 'active';
@@ -363,10 +365,20 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
   const { isCapturing, isScreenSharing, isCameraOn, startScreenShare, stopScreenShare, startCamera, stopCamera, stopCompositor, videoRefCamera, videoRefScreen, canvasRef } = useCompositor(handleFrame);
 
   const connectAPI = async (overrideScopeId?: string) => {
+    if (
+      isConnecting ||
+      wsRef.current?.readyState === WebSocket.CONNECTING ||
+      wsRef.current?.readyState === WebSocket.OPEN
+    ) {
+      dbg('ws', '⏭️ Connection attempt ignored (already connecting/connected)');
+      return;
+    }
     const effectiveScope = overrideScopeId ?? scopeId;
     modelTurnCountRef.current = 0;
     micChunkCountRef.current = 0;
     micLogCountRef.current = 0;
+    processedToolCallIdsRef.current.clear();
+    processedToolCallFingerprintsRef.current.clear();
     if (process.env.NODE_ENV === 'development') fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'page.tsx:connectAPI',message:'connectAPI called',data:{},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
     setIsConnecting(true);
 
@@ -579,7 +591,9 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       setIsConnected(false);
       setIsToolPending(false);
       setIsSetupComplete(false);
+      setIsConnecting(false);
       processedToolCallIdsRef.current.clear();
+      processedToolCallFingerprintsRef.current.clear();
       stopRecording();
       stopCompositor();
 
@@ -613,20 +627,26 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
   const handleToolCall = async (toolCall: any) => {
     console.log('Tool Call Received:', toolCall);
-    const { name, args, id } = toolCall;
+    const dedupeDecision = shouldProcessToolCall(
+      toolCall,
+      processedToolCallIdsRef.current,
+      processedToolCallFingerprintsRef.current
+    );
+    const { name, args, id } = dedupeDecision.normalized;
+    const typedArgs = args as Record<string, any>;
 
-    if (id && processedToolCallIdsRef.current.has(id)) {
-      dbg('tool', `⏭️ Skipping duplicate tool call ${name} (id=${id})`);
+    if (!dedupeDecision.shouldProcess) {
+      const why = dedupeDecision.reason === 'duplicate_id' ? 'duplicate id' : 'duplicate payload';
+      dbg('tool', `⏭️ Skipping duplicate tool call ${name} (${why})`);
       return;
     }
-    if (id) processedToolCallIdsRef.current.add(id);
 
     // Activate the "thinking" pulse as soon as a tool call is received
     setIsToolPending(true);
 
     if (name === 'finalize_marketing_strategy') {
-      sessionNotesRef.current.push(`Moved strategy phase to: ${args.phase}`);
-      sendToolResponse(id, name, { success: true, phase: args.phase });
+      sessionNotesRef.current.push(`Moved strategy phase to: ${typedArgs.phase}`);
+      sendToolResponse(id, name, { success: true, phase: typedArgs.phase });
 
     } else if (name === 'generate_brand_asset') {
       const alreadyGenerating = brandAssets.some(a => a.status === 'generating');
@@ -637,9 +657,9 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         });
       } else {
       const assetId = `asset-${Date.now()}`;
-      const newAsset: BrandAsset = { id: assetId, prompt: args.image_prompt, status: 'generating' };
+      const newAsset: BrandAsset = { id: assetId, prompt: typedArgs.image_prompt, status: 'generating' };
       setBrandAssets(prev => [newAsset, ...prev]);
-      sessionNotesRef.current.push(`Generating brand asset: ${args.image_prompt}`);
+      sessionNotesRef.current.push(`Generating brand asset: ${typedArgs.image_prompt}`);
 
       try {
         let referenceFrame: string | undefined;
@@ -650,7 +670,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             referenceFrame = undefined;
           }
         }
-        const saved = await generateBrandAssetAction(args.image_prompt, scopeId, referenceFrame);
+        const saved = await generateBrandAssetAction(typedArgs.image_prompt, scopeId, referenceFrame);
         const refreshed = await fetchBrandAssetsAction(scopeId);
         const newAssetData = refreshed.find(a => a.id === saved.id);
         setBrandAssets(prev =>
@@ -658,7 +678,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             ? { ...a, id: saved.id, status: 'done', dataUrl: toDisplayUrl(newAssetData?.image_url) ?? newAssetData?.image_url } : a)
         );
         sendToolResponse(id, name, { success: true, asset_id: saved.id, message: 'Brand asset generated and saved to Launch Pack.' });
-        sessionNotesRef.current.push(`Generated brand asset for: ${args.image_prompt}`);
+        sessionNotesRef.current.push(`Generated brand asset for: ${typedArgs.image_prompt}`);
       } catch (err) {
         console.error('Brand asset generation failed:', err);
         setBrandAssets(prev =>
@@ -679,18 +699,18 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       const tempId = `short-${Date.now()}`;
       const newShort: { id: string; prompt: string; status: 'generating' | 'done' | 'error'; videoUrl?: string } = {
         id: tempId,
-        prompt: args.video_prompt,
+        prompt: typedArgs.video_prompt,
         status: 'generating',
       };
       setShortVideos(prev => [newShort, ...prev]);
       setShortVideoError(null);
-      sessionNotesRef.current.push(`Generating short-form video: ${args.video_prompt}`);
+      sessionNotesRef.current.push(`Generating short-form video: ${typedArgs.video_prompt}`);
 
       try {
-        const { job_id } = await startShortFormVideoAction(args.video_prompt, scopeId, {
-          reference_asset_ids: Array.isArray(args.reference_asset_ids) ? args.reference_asset_ids : undefined,
-          duration_seconds: ['4', '6', '8'].includes(String(args.duration_seconds)) ? parseInt(String(args.duration_seconds), 10) as 4 | 6 | 8 : undefined,
-          platform: args.platform === 'tiktok' || args.platform === 'youtube_shorts' ? args.platform : undefined,
+        const { job_id } = await startShortFormVideoAction(typedArgs.video_prompt, scopeId, {
+          reference_asset_ids: Array.isArray(typedArgs.reference_asset_ids) ? typedArgs.reference_asset_ids : undefined,
+          duration_seconds: ['4', '6', '8'].includes(String(typedArgs.duration_seconds)) ? parseInt(String(typedArgs.duration_seconds), 10) as 4 | 6 | 8 : undefined,
+          platform: typedArgs.platform === 'tiktok' || typedArgs.platform === 'youtube_shorts' ? typedArgs.platform : undefined,
         });
         const refreshed = await fetchShortVideosAction(scopeId);
         let mapped = refreshed.map((v) => ({
@@ -701,7 +721,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         }));
         // Firestore eventual consistency: newly created short may not appear in fetch yet — ensure it's in the list
         if (!mapped.some((s) => s.id === job_id)) {
-          mapped = [{ id: job_id, prompt: args.video_prompt, status: 'generating' as const, videoUrl: undefined }, ...mapped];
+          mapped = [{ id: job_id, prompt: typedArgs.video_prompt, status: 'generating' as const, videoUrl: undefined }, ...mapped];
         }
         setShortVideos(mapped);
 
@@ -722,7 +742,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                 return prev.map(s => s.id === job_id ? { ...s, status: 'done' as const, videoUrl: result.video_url } : s);
               }
               // Short was lost (e.g. eventual consistency); add it now
-              return [{ id: job_id, prompt: args.video_prompt, status: 'done' as const, videoUrl: result.video_url }, ...prev];
+              return [{ id: job_id, prompt: typedArgs.video_prompt, status: 'done' as const, videoUrl: result.video_url }, ...prev];
             });
           } else if (result.status === 'error') {
             setShortVideos(prev => prev.map(s => s.id === job_id ? { ...s, status: 'error' as const } : s));
@@ -742,7 +762,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       }
 
     } else if (name === 'create_kanban_task') {
-      const { title, platform, priority, description, asset_id, video_asset_id, caption, tags, status } = args;
+      const { title, platform, priority, description, asset_id, video_asset_id, caption, tags, status } = typedArgs;
       const tempId = `task-${Date.now()}`;
       const optimisticTask: KanbanTask = {
         id: tempId,
@@ -772,7 +792,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       }
 
     } else if (name === 'upsert_vibe_profile') {
-      const newVibe = args.new_identity;
+      const newVibe = typedArgs.new_identity;
       setBrandIdentity(newVibe);
       sessionNotesRef.current.push(`Updated brand vibe profile to: ${newVibe}`);
       setIsPulsing(true);
@@ -1020,9 +1040,10 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             <p className="text-xs text-neutral-500 mb-6">Save this to restore your session later.</p>
             <button
               onClick={handleStartSession}
+              disabled={isConnecting}
               className="px-8 py-3 rounded-full bg-indigo-500 text-white font-medium hover:bg-indigo-600 transition-all"
             >
-              Start Session
+              {isConnecting ? 'Starting…' : 'Start Session'}
             </button>
           </motion.div>
         )}

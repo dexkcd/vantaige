@@ -21,6 +21,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] True Barge-in Support (VAD-driven buffer clearing)
 - [ ] Affective Intelligence (Tone detection & adaptation)
 - [x] Zero-Latency Hand-off (Syncing UI assets with voice)
+- [x] Duplicate Turn Guard: dedupe repeated Live API tool calls (ID + payload fingerprint window) to prevent duplicate execution and "double turn" timing.
 
 ### 3. 🧠 Strategic Brain (Memory Layer)
 - [x] **Vibe Profile**: Persistent brand DNA storage (Firestore)
@@ -172,4 +173,4 @@ gcloud storage buckets add-iam-policy-binding gs://vantaige-417aa.firebasestorag
 
 ---
 *Reference: See [AGENTS.md](AGENTS.md) for detailed coding standards and workflow details.*
-*Last Updated: 2026-03-05*
+*Last Updated: 2026-03-06*
