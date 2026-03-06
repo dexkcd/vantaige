@@ -14,6 +14,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ### 1. 👁️ The "Live Vision" Engine
 - [x] Dual-Stream Input (Webcam + Screen-Share)
+- [x] Camera lens toggle (front ↔ back) with live restart
 - [x] Low-Latency Compositor (1FPS Gemini Stream)
 - [x] Proactive Visual Auditing (Interruption logic for brand mismatches)
 
@@ -172,4 +173,4 @@ gcloud storage buckets add-iam-policy-binding gs://vantaige-417aa.firebasestorag
 
 ---
 *Reference: See [AGENTS.md](AGENTS.md) for detailed coding standards and workflow details.*
-*Last Updated: 2026-03-05*
+*Last Updated: 2026-03-06*

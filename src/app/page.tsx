@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
-import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X, Trash2, Copy, Check } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X, Trash2, Copy, Check, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   fetchVantAIgeContext,
@@ -360,7 +360,21 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }));
   };
 
-  const { isCapturing, isScreenSharing, isCameraOn, startScreenShare, stopScreenShare, startCamera, stopCamera, stopCompositor, videoRefCamera, videoRefScreen, canvasRef } = useCompositor(handleFrame);
+  const {
+    isCapturing,
+    isScreenSharing,
+    isCameraOn,
+    cameraFacingMode,
+    startScreenShare,
+    stopScreenShare,
+    startCamera,
+    stopCamera,
+    toggleCameraFacingMode,
+    stopCompositor,
+    videoRefCamera,
+    videoRefScreen,
+    canvasRef,
+  } = useCompositor(handleFrame);
 
   const connectAPI = async (overrideScopeId?: string) => {
     const effectiveScope = overrideScopeId ?? scopeId;
@@ -1121,6 +1135,19 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
             >
               {isCameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+            </button>
+            <button
+              onClick={toggleCameraFacingMode}
+              disabled={!isCameraOn}
+              className={`p-2.5 sm:p-3 rounded-full transition-all duration-300 ${isCameraOn ? 'text-neutral-300 hover:text-white hover:bg-neutral-800' : 'text-neutral-600 cursor-not-allowed'}`}
+              title={
+                isCameraOn
+                  ? `Switch to ${cameraFacingMode === 'user' ? 'back' : 'front'} camera`
+                  : 'Turn on camera to switch front/back lens'
+              }
+              aria-label={isCameraOn ? 'Switch camera lens' : 'Camera lens switch unavailable'}
+            >
+              <RefreshCw size={20} />
             </button>
             <button
               className={`p-2.5 sm:p-3 rounded-full transition-all duration-300 ${isRecording ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-500'}`}
