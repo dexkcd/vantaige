@@ -302,18 +302,30 @@ export async function fetchKanbanTasksAction(
     status: KanbanTaskStatus;
 }>> {
     const plans = await fetchMarketingPlans(brandId);
-    return plans.map((row) => ({
-        id: row.id,
-        title: row.title,
-        platform: row.platform || 'Multi-channel',
-        priority: (row.priority as 'high' | 'medium' | 'low') || 'medium',
-        description: row.description || '',
-        image_url: row.image_url,
-        video_url: row.video_url,
-        caption: row.caption,
-        tags: row.tags,
-        status: (row.status as KanbanTaskStatus) || 'draft',
-    }));
+    const tasks = await Promise.all(
+        plans.map(async (row) => {
+            let videoUrl = row.video_url;
+            // Resolve video_url from short when we have video_asset_id but no video_url
+            // (e.g. short was still generating when task was added)
+            if (row.video_asset_id && !videoUrl) {
+                const short = await getShortVideoById(brandId, row.video_asset_id);
+                if (short?.video_url) videoUrl = short.video_url;
+            }
+            return {
+                id: row.id,
+                title: row.title,
+                platform: row.platform || 'Multi-channel',
+                priority: (row.priority as 'high' | 'medium' | 'low') || 'medium',
+                description: row.description || '',
+                image_url: row.image_url,
+                video_url: videoUrl,
+                caption: row.caption,
+                tags: row.tags,
+                status: (row.status as KanbanTaskStatus) || 'draft',
+            };
+        })
+    );
+    return tasks;
 }
 
 /**
@@ -389,6 +401,7 @@ export async function createKanbanTaskAction(
         description,
         image_url: imageUrl,
         video_url: videoUrl,
+        video_asset_id: options?.video_asset_id,
         caption: caption || undefined,
         tags: options?.tags,
         status: options?.status ?? 'draft',

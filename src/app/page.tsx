@@ -157,34 +157,50 @@ export default function Dashboard() {
   }, [isSetupComplete]);
 
   // Load context when session is active (sessionId is set)
+  // Each fetch runs independently so a failure in one doesn't block shorts/assets/tasks
   useEffect(() => {
-    if (!sessionId || sessionPhase === 'choose' || sessionPhase === 'continue') return;
+    if (!sessionId || sessionPhase === 'choose' || sessionPhase === 'continue' || sessionPhase === 'new') return;
     const loadContext = async () => {
-      const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(sessionId);
-      if (vibeProfile?.brand_identity) setBrandIdentity(vibeProfile.brand_identity);
-      setSessionLogs(sessionLogs);
-
-      const savedAssets = await fetchBrandAssetsAction(sessionId);
-      setBrandAssets(savedAssets.map(a => ({
-        id: a.id,
-        prompt: a.prompt,
-        status: (a.status as BrandAsset['status']) || 'done',
-        dataUrl: toDisplayUrl(a.image_url) ?? a.image_url,
-      })));
-
-      const savedTasks = await fetchKanbanTasksAction(sessionId);
-      setKanbanTasks(savedTasks.map((t) => ({
-        ...t,
-        status: (t.status as KanbanTaskStatus) || 'draft',
-      })));
-
-      const savedShorts = await fetchShortVideosAction(sessionId);
-      setShortVideos(savedShorts.map((v) => ({
-        id: v.id,
-        prompt: v.prompt,
-        status: v.status as 'generating' | 'done' | 'error',
-        videoUrl: v.video_url,
-      })));
+      try {
+        const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(sessionId);
+        if (vibeProfile?.brand_identity) setBrandIdentity(vibeProfile.brand_identity);
+        setSessionLogs(sessionLogs);
+      } catch (e) {
+        console.error('Failed to load vibe/session logs:', e);
+      }
+      try {
+        const savedAssets = await fetchBrandAssetsAction(sessionId);
+        setBrandAssets(savedAssets.map(a => ({
+          id: a.id,
+          prompt: a.prompt,
+          status: (a.status as BrandAsset['status']) || 'done',
+          dataUrl: toDisplayUrl(a.image_url) ?? a.image_url,
+        })));
+      } catch (e) {
+        console.error('Failed to load brand assets:', e);
+      }
+      try {
+        const savedTasks = await fetchKanbanTasksAction(sessionId);
+        setKanbanTasks(savedTasks.map((t) => ({
+          ...t,
+          status: (t.status as KanbanTaskStatus) || 'draft',
+        })));
+      } catch (e) {
+        console.error('Failed to load kanban tasks:', e);
+      }
+      try {
+        const savedShorts = await fetchShortVideosAction(sessionId);
+        const mapped = savedShorts.map((v) => ({
+          id: v.id,
+          prompt: v.prompt,
+          status: v.status as 'generating' | 'done' | 'error',
+          videoUrl: v.video_url,
+        }));
+        setShortVideos(mapped);
+        if (mapped.length > 0) setLaunchPackTab('shorts');
+      } catch (e) {
+        console.error('Failed to load short videos:', e);
+      }
     };
     loadContext();
   }, [sessionId, sessionPhase]);
@@ -358,6 +374,40 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     const { vibeProfile, sessionLogs } = await fetchVantAIgeContext(effectiveScope);
     if (vibeProfile?.brand_identity) {
       setBrandIdentity(vibeProfile.brand_identity);
+    }
+    setSessionLogs(sessionLogs);
+
+    // 1b. Load Launch Pack data (shorts, assets, tasks) — ensures they show on continue session
+    // Use allSettled so one failure doesn't block the others
+    const [assetsResult, tasksResult, shortsResult] = await Promise.allSettled([
+      fetchBrandAssetsAction(effectiveScope),
+      fetchKanbanTasksAction(effectiveScope),
+      fetchShortVideosAction(effectiveScope),
+    ]);
+    if (assetsResult.status === 'fulfilled') {
+      setBrandAssets(assetsResult.value.map(a => ({
+        id: a.id,
+        prompt: a.prompt,
+        status: (a.status as BrandAsset['status']) || 'done',
+        dataUrl: toDisplayUrl(a.image_url) ?? a.image_url,
+      })));
+    }
+    if (tasksResult.status === 'fulfilled') {
+      setKanbanTasks(tasksResult.value.map((t) => ({
+        ...t,
+        status: (t.status as KanbanTaskStatus) || 'draft',
+      })));
+    }
+    if (shortsResult.status === 'fulfilled') {
+      const shorts = shortsResult.value.map((v) => ({
+        id: v.id,
+        prompt: v.prompt,
+        status: v.status as 'generating' | 'done' | 'error',
+        videoUrl: v.video_url,
+      }));
+      setShortVideos(shorts);
+      // Auto-switch to Shorts tab when continuing a session with existing shorts
+      if (shorts.length > 0) setLaunchPackTab('shorts');
     }
 
     // 2. Inject Memory Block into System Instruction
@@ -643,12 +693,17 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           platform: args.platform === 'tiktok' || args.platform === 'youtube_shorts' ? args.platform : undefined,
         });
         const refreshed = await fetchShortVideosAction(scopeId);
-        setShortVideos(refreshed.map((v) => ({
+        let mapped = refreshed.map((v) => ({
           id: v.id,
           prompt: v.prompt,
           status: (v.status as 'generating' | 'done' | 'error') ?? 'generating',
           videoUrl: v.video_url,
-        })));
+        }));
+        // Firestore eventual consistency: newly created short may not appear in fetch yet — ensure it's in the list
+        if (!mapped.some((s) => s.id === job_id)) {
+          mapped = [{ id: job_id, prompt: args.video_prompt, status: 'generating' as const }, ...mapped];
+        }
+        setShortVideos(mapped);
 
         // Send immediate confirmation so the AI can verbalize right away (video takes 1–3 min)
         sendToolResponse(id, name, {
@@ -661,8 +716,14 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         const poll = async () => {
           const result = await checkShortFormVideoStatusAction(job_id, scopeId);
           if (result.status === 'done' && result.video_url) {
-            setShortVideos(prev => prev.map(s => s.id === job_id ? { ...s, status: 'done' as const, videoUrl: result.video_url } : s));
-            // Final result sent via a fresh clientContent turn (user sees video in UI); no second tool response—we already sent "started"
+            setShortVideos(prev => {
+              const existing = prev.find(s => s.id === job_id);
+              if (existing) {
+                return prev.map(s => s.id === job_id ? { ...s, status: 'done' as const, videoUrl: result.video_url } : s);
+              }
+              // Short was lost (e.g. eventual consistency); add it now
+              return [{ id: job_id, prompt: args.video_prompt, status: 'done' as const, videoUrl: result.video_url }, ...prev];
+            });
           } else if (result.status === 'error') {
             setShortVideos(prev => prev.map(s => s.id === job_id ? { ...s, status: 'error' as const } : s));
             // Tool response already sent as "started"; user sees error state in Shorts UI
@@ -752,6 +813,21 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
   const [launchPackTab, setLaunchPackTab] = useState<'images' | 'shorts'>('images');
 
+  // Refetch shorts when switching to Shorts tab (ensures shorts load on continue session)
+  useEffect(() => {
+    if (launchPackTab !== 'shorts' || !sessionId || sessionPhase !== 'active') return;
+    const loadShorts = async () => {
+      const savedShorts = await fetchShortVideosAction(sessionId);
+      setShortVideos(savedShorts.map((v) => ({
+        id: v.id,
+        prompt: v.prompt,
+        status: v.status as 'generating' | 'done' | 'error',
+        videoUrl: v.video_url,
+      })));
+    };
+    loadShorts();
+  }, [launchPackTab, sessionId, sessionPhase]);
+
   const handleAddToPlan = async (asset: BrandAsset) => {
     const tempId = `task-asset-${Date.now()}`;
     const task: KanbanTask = {
@@ -788,6 +864,21 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       await deleteShortVideoAction(scopeId, short.id);
     }
     setShortVideos(prev => prev.filter(s => s.id !== short.id));
+  };
+
+  const handleRefreshShorts = async () => {
+    if (!scopeId) return;
+    try {
+      const refreshed = await fetchShortVideosAction(scopeId);
+      setShortVideos(refreshed.map((v) => ({
+        id: v.id,
+        prompt: v.prompt,
+        status: (v.status as 'generating' | 'done' | 'error') ?? 'generating',
+        videoUrl: v.video_url,
+      })));
+    } catch (err) {
+      console.error('Failed to refresh shorts:', err);
+    }
   };
 
   const handleAddShortToPlan = async (short: { id: string; prompt: string; status: string; videoUrl?: string }) => {
@@ -1215,11 +1306,15 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     className="w-full text-left p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                   >
                     <div className="flex gap-3">
-                      {task.image_url && (
+                      {task.image_url ? (
                         <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-neutral-800">
                           <img src={toDisplayUrl(task.image_url) || task.image_url} alt="" className="w-full h-full object-cover" />
                         </div>
-                      )}
+                      ) : task.video_url ? (
+                        <div className="shrink-0 w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center">
+                          <Video size={20} className="text-indigo-400" />
+                        </div>
+                      ) : null}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
                           <p className="text-sm text-neutral-200 font-medium leading-tight">{task.title}</p>
@@ -1288,6 +1383,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               shorts={shortVideos}
               onAddToPlan={handleAddShortToPlan}
               onDelete={handleDeleteShort}
+              onRefresh={handleRefreshShorts}
               error={shortVideoError}
               onDismissError={() => setShortVideoError(null)}
             />

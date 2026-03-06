@@ -117,6 +117,7 @@ export interface MarketingPlan {
     description?: string;
     image_url?: string;
     video_url?: string;
+    video_asset_id?: string;
     caption?: string;
     tags?: string[];
     status: MarketingPlanStatus;
@@ -318,6 +319,7 @@ export async function fetchMarketingPlans(brandId: string): Promise<MarketingPla
                 description: d.description,
                 image_url: d.image_url,
                 video_url: d.video_url,
+                video_asset_id: d.video_asset_id,
                 caption: d.caption,
                 tags: d.tags as string[] | undefined,
                 status: (d.status as MarketingPlanStatus) ?? 'draft',
@@ -339,6 +341,7 @@ export async function insertMarketingPlan(
         description: string;
         image_url?: string;
         video_url?: string;
+        video_asset_id?: string;
         caption?: string;
         tags?: string[];
         status?: MarketingPlanStatus;
@@ -356,6 +359,7 @@ export async function insertMarketingPlan(
         };
         if (data.image_url != null) payload.image_url = data.image_url;
         if (data.video_url != null) payload.video_url = data.video_url;
+        if (data.video_asset_id != null) payload.video_asset_id = data.video_asset_id;
         if (data.caption != null) payload.caption = data.caption;
         if (data.tags != null) payload.tags = data.tags;
 
@@ -371,6 +375,7 @@ export async function insertMarketingPlan(
             description: d.description,
             image_url: d.image_url,
             video_url: d.video_url,
+            video_asset_id: d.video_asset_id,
             caption: d.caption,
             tags: d.tags as string[] | undefined,
             status: (d.status as MarketingPlanStatus) ?? 'draft',
