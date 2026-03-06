@@ -701,7 +701,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         }));
         // Firestore eventual consistency: newly created short may not appear in fetch yet — ensure it's in the list
         if (!mapped.some((s) => s.id === job_id)) {
-          mapped = [{ id: job_id, prompt: args.video_prompt, status: 'generating' as const }, ...mapped];
+          mapped = [{ id: job_id, prompt: args.video_prompt, status: 'generating' as const, videoUrl: undefined }, ...mapped];
         }
         setShortVideos(mapped);
 
