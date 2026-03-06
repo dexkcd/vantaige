@@ -43,11 +43,38 @@ export async function GET(request: NextRequest) {
         const [metadata] = await file.getMetadata();
         const contentType = metadata?.contentType ||
             (path.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'image/png');
+        const size = Number(metadata?.size ?? 0);
+
+        // Support Range requests for video streaming (required by HTML5 video for seeking)
+        const rangeHeader = request.headers.get('range');
+        if (rangeHeader && size > 0) {
+            const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+            if (match) {
+                const start = match[1] ? parseInt(match[1], 10) : 0;
+                const end = match[2] ? parseInt(match[2], 10) : size - 1;
+                const chunkSize = end - start + 1;
+                const nodeStream = file.createReadStream({ start, end });
+                const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+                return new NextResponse(webStream, {
+                    status: 206,
+                    headers: {
+                        'Content-Type': contentType,
+                        'Content-Range': `bytes ${start}-${end}/${size}`,
+                        'Content-Length': String(chunkSize),
+                        'Accept-Ranges': 'bytes',
+                        'Cache-Control': 'public, max-age=86400',
+                    },
+                });
+            }
+        }
+
         const nodeStream = file.createReadStream();
         const webStream = Readable.toWeb(nodeStream) as ReadableStream;
         return new NextResponse(webStream, {
             headers: {
                 'Content-Type': contentType,
+                'Content-Length': String(size),
+                'Accept-Ranges': 'bytes',
                 'Cache-Control': 'public, max-age=86400',
             },
         });

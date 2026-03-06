@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, PlusCircle, Trash2, Video } from 'lucide-react';
+import { Download, PlusCircle, RefreshCw, Trash2, Video } from 'lucide-react';
 import { APP_NAME } from '@/lib/branding';
 
 export interface ShortVideoAsset {
@@ -15,11 +16,12 @@ interface ShortsSidebarProps {
     shorts: ShortVideoAsset[];
     onAddToPlan: (short: ShortVideoAsset) => void;
     onDelete?: (short: ShortVideoAsset) => void;
+    onRefresh?: () => void;
     error?: string | null;
     onDismissError?: () => void;
 }
 
-export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, error, onDismissError }: ShortsSidebarProps) {
+export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, onRefresh, error, onDismissError }: ShortsSidebarProps) {
     const handleDownload = (short: ShortVideoAsset) => {
         if (!short.videoUrl) return;
         window.open(short.videoUrl, '_blank', 'noopener,noreferrer');
@@ -29,8 +31,21 @@ export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, error, on
         <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 sm:p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
             <h2 className="text-xl font-semibold mb-1 flex justify-between items-center">
                 Shorts
-                <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">
-                    {shorts.filter((s) => s.status === 'done').length} ready
+                <span className="flex items-center gap-2">
+                    {onRefresh && (
+                        <button
+                            type="button"
+                            onClick={onRefresh}
+                            className="p-1.5 rounded-lg text-neutral-500 hover:text-indigo-400 hover:bg-neutral-800/80 transition-colors"
+                            title="Refresh shorts"
+                            aria-label="Refresh shorts"
+                        >
+                            <RefreshCw size={14} />
+                        </button>
+                    )}
+                    <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">
+                        {shorts.filter((s) => s.status === 'done').length} ready
+                    </span>
                 </span>
             </h2>
             <p className="text-xs text-neutral-500 mb-5">TikTok & YouTube Shorts (9:16)</p>
@@ -93,12 +108,17 @@ export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, error, on
                                 ) : (
                                     <div className="aspect-[9/16] w-full max-h-80 mx-auto relative group overflow-hidden bg-black">
                                         <video
-                                            src={short.videoUrl}
+                                            src={typeof window !== 'undefined' && short.videoUrl?.startsWith('/')
+                                                ? `${window.location.origin}${short.videoUrl}`
+                                                : short.videoUrl}
                                             className="w-full h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity duration-300"
                                             controls
                                             muted
                                             playsInline
                                             loop
+                                            onError={(e) => {
+                                                console.error('[ShortsSidebar] Video failed to load:', short.videoUrl, e);
+                                            }}
                                         />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                                     </div>
