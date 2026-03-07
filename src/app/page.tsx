@@ -245,11 +245,15 @@ AFFECTIVE INTELLIGENCE: Infer the user's tone and emotional state from their voi
 
 COHESIVE CONVERSATION: When ANY tool is running (upsert_vibe_profile, generate_brand_asset, generate_short_form_video, create_kanban_task, pin_copy, etc.), the user may speak—e.g. refining their vibe ("actually more minimalist"), changing an asset ("make it blue"), or adding context. Treat ALL speech during tool execution as a follow-up or clarification to the CURRENT request. Do NOT start a new conversation thread. Wait for the tool result, then incorporate both the tool output and the user's additional input into a single cohesive response. One turn, one flow.
 
+CONSENT FOR GENERATION: You MUST NOT call generate_brand_asset or generate_short_form_video until the user gives explicit permission. When they ask for an image, logo, banner, or short-form video, first describe what you'll create and ask for confirmation—e.g. "I'll generate a logo with [description]. Should I go ahead?" or "I can create a 6-second TikTok ad with [summary]. Want me to generate it?" Only call the tool after they say yes, okay, go ahead, sure, do it, etc. Adding to tasks (create_kanban_task), pinning copy (pin_copy), and updating vibe (upsert_vibe_profile) do NOT require consent—those are fine to call when appropriate.
+
+GENERATION ANNOUNCEMENTS: When you call generate_brand_asset or generate_short_form_video, you MUST ALWAYS: (1) Announce START—say something like "Starting image generation now..." or "Generating your video now—this will take about a minute or two." (2) Announce END—after the tool returns, say something like "Done! Your [image/video] is ready in the Launch Pack." Never silently generate; the user must hear when generation begins and when it completes.
+
 TOOLS: Call each tool ONCE per user request—never duplicate. After a tool returns, always give a brief verbal confirmation (e.g. "Done, I've added that to your Launch Pack" or "I've started generating your video—it'll be ready in a minute or two").
 - finalize_marketing_strategy: Set the current strategy phase.
-- generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Call it once per asset request. Use a rich, brand-aware prompt. When the user has screen share or camera on, you can request assets "based on what you see" — the system will use the current frame (screen or camera, whichever they have active).
-- generate_short_form_video: Call when user wants a TikTok, YouTube Short, or vertical short-form video. Call it once per video request. CRITICAL: The video_prompt MUST be a structured mini-spec (80–150 words), NOT a vague vibe. Use this skeleton: (1) Video type & goal — e.g. "8s vertical ad for TikTok showcasing [product], aspirational mood"; (2) Visual formula — Camera/shot, Subject, Action, Setting, Style & mood; (3) Text/CTA — Add ONE clear CTA as text overlay at the END of the video only. Format: "Add only this exact text overlay, nothing else: '[CTA phrase]' at [last 2–3 seconds], center or bottom, clean sans serif. No typos, no emojis, no extra words, no additional text." E.g. for 8s video: "at 5–8s"; for 6s: "at 4–6s"; for 4s: "at 2–4s"; (4) Brand guardrails — "Brand vibe: modern, calm, confident. Avoid: exaggerated reactions, cartoon graphics, floating emojis, confetti, neon, meme templates."; (5) Optional structure — e.g. "0–4s: hook and action; 4–8s: payoff with CTA." Use reference_asset_ids for brand assets. Generation takes 1–3 min.
-- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. For TikTok/YouTube Shorts video posts, include video_asset_id (from prior generate_short_form_video). IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the asset on the platform.
+- generate_brand_asset: Call ONLY after user gives explicit permission. When they ask for a logo, banner, image, or visual asset, first describe it and ask "Should I generate it?" or "Want me to go ahead?" Only call after yes. Use a rich, brand-aware prompt. When they have screen share or camera on, you can request assets "based on what you see." ALWAYS announce when you start ("Starting image generation now...") and when it completes ("Done! Your image is in the Launch Pack.").
+- generate_short_form_video: Call ONLY after user gives explicit permission. When they want a TikTok or YouTube Short, first summarize the video and ask "Should I generate it?" Only call after yes. CRITICAL: The video_prompt MUST be a structured mini-spec (80–150 words), NOT a vague vibe. Use this skeleton: (1) Video type & goal; (2) Visual formula — Camera/shot, Subject, Action, Setting, Style & mood; (3) Text/CTA — Add ONE clear CTA as text overlay at the END only. Format: "Add only this exact text overlay, nothing else: '[CTA phrase]' at [last 2–3 seconds], center or bottom, clean sans serif. No typos, no emojis, no extra words."; (4) Brand guardrails; (5) Optional structure. Use reference_asset_ids for brand assets. Generation takes 1–3 min. ALWAYS announce when you start ("Generating your video now—this will take about a minute or two.") and when it completes ("Done! Your video is ready in the Shorts section.").
+- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). Before calling, CHECK if you've already added a task with the same or very similar title in this session—do NOT create duplicates. For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. For TikTok/YouTube Shorts video posts, include video_asset_id (from prior generate_short_form_video). IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the asset on the platform.
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
 - pin_copy: When suggesting social media copy, taglines, or captions for the user to review, call this to pin the copy to the Launch Pack Review tab.
 - end_session: End the session when the user is done.
@@ -272,7 +276,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             },
             {
               name: 'generate_brand_asset',
-              description: 'Generates a brand visual asset (logo, banner, moodboard, etc.) using AI image generation. Call whenever the user requests visual creative output. If they have the live feed on and ask for something "based on what you see" or "from the screen/product", include that in the prompt — the system will use the current video frame to inform the image.',
+              description: 'Generates a brand visual asset (logo, banner, moodboard, etc.) using AI image generation. REQUIRES explicit user consent—do NOT call until the user confirms (yes, go ahead, etc.) after you describe what you will create. If they have the live feed on and ask for something "based on what you see", include that in the prompt. You MUST announce when generation starts and when it completes.',
               parameters: {
                 type: 'object',
                 properties: { image_prompt: { type: 'string', description: 'A detailed, brand-aware prompt for the image generator' } },
@@ -281,7 +285,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             },
             {
               name: 'generate_short_form_video',
-              description: 'Generates a TikTok or YouTube Short (9:16 vertical video) using Veo 3.1. video_prompt MUST be a structured mini-spec (80–150 words) with: video type/goal, camera/shot style, subject, action, setting, style & mood, ONE CTA text overlay at the END only (specify exact copy, timing for last 2–3s, position, clean sans serif; no typos, no emojis, no extra text), and brand guardrails. Use reference_asset_ids for brand assets. Generation takes 1–3 min.',
+              description: 'Generates a TikTok or YouTube Short (9:16 vertical video) using Veo 3.1. REQUIRES explicit user consent—do NOT call until the user confirms after you summarize the video. video_prompt MUST be a structured mini-spec (80–150 words) with: video type/goal, camera/shot style, subject, action, setting, style & mood, ONE CTA text overlay at the END only, and brand guardrails. Use reference_asset_ids for brand assets. Generation takes 1–3 min. You MUST announce when generation starts and when it completes.',
               parameters: {
                 type: 'object',
                 properties: {
@@ -789,6 +793,15 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
     } else if (name === 'create_kanban_task') {
       const { title, platform, priority, description, asset_id, video_asset_id, caption, tags, status } = args;
+      const titleNorm = String(title || '').trim().toLowerCase();
+      const isDuplicate = titleNorm && kanbanTasks.some(
+        t => String(t.title || '').trim().toLowerCase() === titleNorm
+      );
+      if (isDuplicate) {
+        sendToolResponse(id, name, { success: false, error: `A task with the title "${title}" already exists on your roadmap. Not creating a duplicate.` });
+        setIsToolPending(false);
+        return;
+      }
       const tempId = `task-${Date.now()}`;
       const optimisticTask: KanbanTask = {
         id: tempId,
@@ -1208,7 +1221,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                 >
                   <Cpu size={15} className="text-indigo-400" />
                 </motion.div>
-                <span className="font-medium">Processing — please wait before speaking</span>
+                <span className="font-medium">Processing</span>
                 <span className="flex gap-0.5">
                   {[0, 1, 2].map(i => (
                     <motion.span
