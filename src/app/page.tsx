@@ -1130,7 +1130,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               <Monitor size={20} />
             </button>
             <button
-              onClick={isCameraOn ? stopCamera : startCamera}
+              onClick={isCameraOn ? stopCamera : () => startCamera()}
               className={`p-2.5 sm:p-3 rounded-full transition-all duration-300 ${isCameraOn ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
               title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
             >
