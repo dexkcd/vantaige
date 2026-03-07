@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
-import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X, Trash2, Copy, Check, RefreshCw } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X, Trash2, Copy, Check, RefreshCw, Pin, PinOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   fetchVantAIgeContext,
@@ -23,6 +23,9 @@ import {
   deleteShortVideoAction,
   createSessionAction,
   getSessionByPasscodeAction,
+  pinForReviewAction,
+  unpinFromReviewAction,
+  fetchPinnedForReviewAction,
 } from './actions/memory';
 import { compressBase64Image } from '@/lib/compressImage';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
@@ -98,6 +101,7 @@ export default function Dashboard() {
   const [shortVideoError, setShortVideoError] = useState<string | null>(null);
   const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null);
+  const [pinnedItems, setPinnedItems] = useState<Array<{ id: string; item_type: 'asset' | 'short' | 'copy'; item_id?: string; text?: string; prompt?: string; image_url?: string; video_url?: string }>>([]);
 
   // Cross-session trend analysis
   const [trendAnalysis, setTrendAnalysis] = useState<string | null>(null);
@@ -151,7 +155,8 @@ export default function Dashboard() {
   const latestFrameRef = useRef<string | null>(null);
   getCanSendRef.current = () =>
     wsRef.current?.readyState === WebSocket.OPEN &&
-    isSetupCompleteRef.current === true;
+    isSetupCompleteRef.current === true &&
+    !isToolPending;
   useEffect(() => {
     isSetupCompleteRef.current = isSetupComplete;
   }, [isSetupComplete]);
@@ -201,6 +206,12 @@ export default function Dashboard() {
       } catch (e) {
         console.error('Failed to load short videos:', e);
       }
+      try {
+        const pinned = await fetchPinnedForReviewAction(sessionId);
+        setPinnedItems(pinned);
+      } catch (e) {
+        console.error('Failed to load pinned items:', e);
+      }
     };
     loadContext();
   }, [sessionId, sessionPhase]);
@@ -230,12 +241,17 @@ export default function Dashboard() {
 
 PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream. If the screen-share (designs, mockups) or camera feed (physical products) shows anything that contradicts the saved Vibe Profile — wrong brand colors, inconsistent typography, off-brand imagery — interrupt and deliver a concise correction. Example: "I notice that blue on your Figma mockup doesn't match the electric indigo in your Vibe Profile — want me to flag the exact HEX?"
 
+AFFECTIVE INTELLIGENCE: Infer the user's tone and emotional state from their voice (pace, energy, word choice) and adapt your responses accordingly. If they sound frustrated or rushed → be concise, solution-focused, and avoid tangents. If they sound excited or energized → match their energy and enthusiasm. If they sound uncertain → offer reassurance and clear options. If they sound distracted or multitasking → keep responses brief and actionable. Never mention that you're "adapting to their tone" — do it naturally.
+
+COHESIVE CONVERSATION: When ANY tool is running (upsert_vibe_profile, generate_brand_asset, generate_short_form_video, create_kanban_task, pin_copy, etc.), the user may speak—e.g. refining their vibe ("actually more minimalist"), changing an asset ("make it blue"), or adding context. Treat ALL speech during tool execution as a follow-up or clarification to the CURRENT request. Do NOT start a new conversation thread. Wait for the tool result, then incorporate both the tool output and the user's additional input into a single cohesive response. One turn, one flow.
+
 TOOLS: Call each tool ONCE per user request—never duplicate. After a tool returns, always give a brief verbal confirmation (e.g. "Done, I've added that to your Launch Pack" or "I've started generating your video—it'll be ready in a minute or two").
 - finalize_marketing_strategy: Set the current strategy phase.
 - generate_brand_asset: Call this whenever the user asks for a logo, banner, image, or any visual asset. Call it once per asset request. Use a rich, brand-aware prompt. When the user has screen share or camera on, you can request assets "based on what you see" — the system will use the current frame (screen or camera, whichever they have active).
 - generate_short_form_video: Call when user wants a TikTok, YouTube Short, or vertical short-form video. Call it once per video request. CRITICAL: The video_prompt MUST be a structured mini-spec (80–150 words), NOT a vague vibe. Use this skeleton: (1) Video type & goal — e.g. "8s vertical ad for TikTok showcasing [product], aspirational mood"; (2) Visual formula — Camera/shot, Subject, Action, Setting, Style & mood; (3) Text/CTA — Add ONE clear CTA as text overlay at the END of the video only. Format: "Add only this exact text overlay, nothing else: '[CTA phrase]' at [last 2–3 seconds], center or bottom, clean sans serif. No typos, no emojis, no extra words, no additional text." E.g. for 8s video: "at 5–8s"; for 6s: "at 4–6s"; for 4s: "at 2–4s"; (4) Brand guardrails — "Brand vibe: modern, calm, confident. Avoid: exaggerated reactions, cartoon graphics, floating emojis, confetti, neon, meme templates."; (5) Optional structure — e.g. "0–4s: hook and action; 4–8s: payoff with CTA." Use reference_asset_ids for brand assets. Generation takes 1–3 min.
 - create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. For TikTok/YouTube Shorts video posts, include video_asset_id (from prior generate_short_form_video). IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the asset on the platform.
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
+- pin_copy: When suggesting social media copy, taglines, or captions for the user to review, call this to pin the copy to the Launch Pack Review tab.
 - end_session: End the session when the user is done.
 
 FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I've generated that logo based on the electric indigo we discussed — it's in your Launch Pack now. How does it look?"`,
@@ -318,6 +334,18 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               },
             },
             {
+              name: 'pin_copy',
+              description: 'Pins suggested copy (tagline, caption, CTA) to the Launch Pack Review tab so the user can review it. Call when you suggest social media copy, headlines, or taglines that the user might want to save for later.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  text: { type: 'string', description: 'The copy text to pin for review (e.g. caption, tagline, CTA)' },
+                  prompt: { type: 'string', description: 'Optional. Context or label for this copy (e.g. "Instagram caption for product launch")' },
+                },
+                required: ['text'],
+              },
+            },
+            {
               name: 'end_session',
               description: 'Ends the current session when the conversation is naturally finished or the user requests to leave.',
               parameters: {
@@ -393,10 +421,11 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
     // 1b. Load Launch Pack data (shorts, assets, tasks) — ensures they show on continue session
     // Use allSettled so one failure doesn't block the others
-    const [assetsResult, tasksResult, shortsResult] = await Promise.allSettled([
+    const [assetsResult, tasksResult, shortsResult, pinnedResult] = await Promise.allSettled([
       fetchBrandAssetsAction(effectiveScope),
       fetchKanbanTasksAction(effectiveScope),
       fetchShortVideosAction(effectiveScope),
+      fetchPinnedForReviewAction(effectiveScope),
     ]);
     if (assetsResult.status === 'fulfilled') {
       setBrandAssets(assetsResult.value.map(a => ({
@@ -422,6 +451,9 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       setShortVideos(shorts);
       // Auto-switch to Shorts tab when continuing a session with existing shorts
       if (shorts.length > 0) setLaunchPackTab('shorts');
+    }
+    if (pinnedResult.status === 'fulfilled') {
+      setPinnedItems(pinnedResult.value);
     }
 
     // 2. Inject Memory Block into System Instruction
@@ -799,6 +831,30 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         sendToolResponse(id, name, { success: false, error: 'Failed DB save' });
       }
 
+    } else if (name === 'pin_copy') {
+      const copyText = args.text ?? args.copy_text ?? '';
+      const context = args.prompt ?? args.context ?? '';
+      if (!copyText.trim()) {
+        sendToolResponse(id, name, { success: false, error: 'No copy text provided.' });
+        return;
+      }
+      try {
+        const result = await pinForReviewAction(scopeId, {
+          item_type: 'copy',
+          text: copyText.trim(),
+          prompt: context.trim() || undefined,
+        });
+        if (result?.id) {
+          setPinnedItems(prev => [{ id: result.id, item_type: 'copy', text: copyText.trim(), prompt: context.trim() || undefined }, ...prev]);
+          setLaunchPackTab('review');
+          sendToolResponse(id, name, { success: true, message: 'Copy pinned to Launch Pack Review.' });
+        } else {
+          sendToolResponse(id, name, { success: false, error: 'Failed to pin copy.' });
+        }
+      } catch {
+        sendToolResponse(id, name, { success: false, error: 'Failed to pin copy.' });
+      }
+
     } else if (name === 'end_session') {
       sendToolResponse(id, name, { success: true, message: 'Session ended.' });
       sessionNotesRef.current.push('AI voluntarily ended the session.');
@@ -825,7 +881,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
   };
 
-  const [launchPackTab, setLaunchPackTab] = useState<'images' | 'shorts'>('images');
+  const [launchPackTab, setLaunchPackTab] = useState<'images' | 'shorts' | 'review'>('images');
 
   // Refetch shorts when switching to Shorts tab (ensures shorts load on continue session)
   useEffect(() => {
@@ -892,6 +948,52 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       })));
     } catch (err) {
       console.error('Failed to refresh shorts:', err);
+    }
+  };
+
+  const handlePinAsset = async (asset: BrandAsset) => {
+    if (!scopeId || asset.status !== 'done' || !asset.dataUrl) return;
+    try {
+      const result = await pinForReviewAction(scopeId, {
+        item_type: 'asset',
+        item_id: asset.id,
+        prompt: asset.prompt,
+        image_url: asset.dataUrl,
+      });
+      if (result?.id) {
+        setPinnedItems(prev => [{ id: result.id, item_type: 'asset', item_id: asset.id, prompt: asset.prompt, image_url: asset.dataUrl }, ...prev]);
+        setLaunchPackTab('review');
+      }
+    } catch (e) {
+      console.error('Failed to pin asset:', e);
+    }
+  };
+
+  const handlePinShort = async (short: { id: string; prompt: string; status: string; videoUrl?: string }) => {
+    if (!scopeId || short.status !== 'done' || !short.videoUrl) return;
+    try {
+      const result = await pinForReviewAction(scopeId, {
+        item_type: 'short',
+        item_id: short.id,
+        prompt: short.prompt,
+        video_url: short.videoUrl,
+      });
+      if (result?.id) {
+        setPinnedItems(prev => [{ id: result.id, item_type: 'short', item_id: short.id, prompt: short.prompt, video_url: short.videoUrl }, ...prev]);
+        setLaunchPackTab('review');
+      }
+    } catch (e) {
+      console.error('Failed to pin short:', e);
+    }
+  };
+
+  const handleUnpin = async (pinId: string) => {
+    if (!scopeId) return;
+    try {
+      await unpinFromReviewAction(scopeId, pinId);
+      setPinnedItems(prev => prev.filter(p => p.id !== pinId));
+    } catch (e) {
+      console.error('Failed to unpin:', e);
     }
   };
 
@@ -1106,7 +1208,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                 >
                   <Cpu size={15} className="text-indigo-400" />
                 </motion.div>
-                <span className="font-medium">{APP_NAME} is thinking</span>
+                <span className="font-medium">Processing — please wait before speaking</span>
                 <span className="flex gap-0.5">
                   {[0, 1, 2].map(i => (
                     <motion.span
@@ -1401,9 +1503,24 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
             >
               Shorts
             </button>
+            <button
+              type="button"
+              onClick={() => setLaunchPackTab('review')}
+              className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-colors ${
+                launchPackTab === 'review' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-neutral-800/50 text-neutral-400 hover:text-neutral-200'
+              }`}
+            >
+              Review {pinnedItems.length > 0 && `(${pinnedItems.length})`}
+            </button>
           </div>
           {launchPackTab === 'images' && (
-            <LaunchPackSidebar assets={brandAssets} onAddToPlan={handleAddToPlan} onRegenerate={handleRegenerate} />
+            <LaunchPackSidebar
+              assets={brandAssets}
+              onAddToPlan={handleAddToPlan}
+              onRegenerate={handleRegenerate}
+              onPin={handlePinAsset}
+              pinnedIds={pinnedItems.filter(p => p.item_type === 'asset').map(p => p.item_id!).filter(Boolean)}
+            />
           )}
           {launchPackTab === 'shorts' && (
             <ShortsSidebar
@@ -1413,7 +1530,50 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               onRefresh={handleRefreshShorts}
               error={shortVideoError}
               onDismissError={() => setShortVideoError(null)}
+              onPin={handlePinShort}
+              pinnedIds={pinnedItems.filter(p => p.item_type === 'short').map(p => p.item_id!).filter(Boolean)}
             />
+          )}
+          {launchPackTab === 'review' && (
+            <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 sm:p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
+              <h2 className="text-xl font-semibold mb-1">Pinned for Review</h2>
+              <p className="text-xs text-neutral-500 mb-5">Assets and copy you&apos;ve pinned for later review</p>
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4 custom-scrollbar">
+                {pinnedItems.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center px-4 text-neutral-500 opacity-60 py-10">
+                    <p className="text-sm">Pin assets or copy from Images/Shorts, or ask {APP_NAME} to suggest copy to pin.</p>
+                  </div>
+                ) : (
+                  pinnedItems.map((pin) => (
+                    <div key={pin.id} className="rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950 p-3">
+                      {pin.item_type === 'asset' && pin.image_url && (
+                        <>
+                          <img src={toDisplayUrl(pin.image_url) ?? pin.image_url} alt={pin.prompt ?? ''} className="aspect-video w-full object-cover rounded-xl mb-2" />
+                          <p className="text-xs text-neutral-400 truncate mb-2" title={pin.prompt}>{pin.prompt}</p>
+                        </>
+                      )}
+                      {pin.item_type === 'short' && pin.video_url && (
+                        <>
+                          <video src={pin.video_url} className="aspect-[9/16] max-h-48 w-full object-contain rounded-xl mb-2 bg-black" muted playsInline loop />
+                          <p className="text-xs text-neutral-400 truncate mb-2" title={pin.prompt}>{pin.prompt}</p>
+                        </>
+                      )}
+                      {pin.item_type === 'copy' && (
+                        <p className="text-sm text-neutral-200 whitespace-pre-wrap">{pin.text}</p>
+                      )}
+                      {pin.item_type !== 'copy' && pin.prompt && <p className="text-xs text-neutral-500 mb-2">{pin.prompt}</p>}
+                      <button
+                        type="button"
+                        onClick={() => handleUnpin(pin.id)}
+                        className="text-xs text-neutral-400 hover:text-rose-400 transition-colors"
+                      >
+                        Unpin
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           )}
         </section>
       </main>

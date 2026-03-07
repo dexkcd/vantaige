@@ -130,6 +130,20 @@ export interface Session {
     created_at: string;
 }
 
+export type PinnedItemType = 'asset' | 'short' | 'copy';
+
+export interface PinnedForReview {
+    id: string;
+    brand_id: string;
+    item_type: PinnedItemType;
+    item_id?: string;
+    text?: string;
+    prompt?: string;
+    image_url?: string;
+    video_url?: string;
+    created_at: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -665,6 +679,81 @@ export async function fetchShortVideos(brandId: string): Promise<ShortVideo[]> {
         });
     } catch (error) {
         logFirestoreError('fetching short videos', error);
+        return [];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Pinned for Review (Launch Pack)
+// ---------------------------------------------------------------------------
+
+export async function insertPinnedForReview(
+    brandId: string,
+    data: {
+        item_type: PinnedItemType;
+        item_id?: string;
+        text?: string;
+        prompt?: string;
+        image_url?: string;
+        video_url?: string;
+    }
+): Promise<{ id: string } | null> {
+    try {
+        const ref = await db.collection('pinned_for_review').add({
+            brand_id: brandId,
+            item_type: data.item_type,
+            item_id: data.item_id ?? null,
+            text: data.text ?? null,
+            prompt: data.prompt ?? null,
+            image_url: data.image_url ?? null,
+            video_url: data.video_url ?? null,
+            created_at: FieldValue.serverTimestamp(),
+        });
+        return { id: ref.id };
+    } catch (error) {
+        logFirestoreError('saving pinned item', error);
+        return null;
+    }
+}
+
+export async function deletePinnedForReview(brandId: string, pinId: string): Promise<boolean> {
+    try {
+        const ref = db.collection('pinned_for_review').doc(pinId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        await ref.delete();
+        return true;
+    } catch (error) {
+        logFirestoreError('deleting pinned item', error);
+        return false;
+    }
+}
+
+export async function fetchPinnedForReview(brandId: string): Promise<PinnedForReview[]> {
+    try {
+        const snap = await db
+            .collection('pinned_for_review')
+            .where('brand_id', '==', brandId)
+            .orderBy('created_at', 'desc')
+            .get();
+        return snap.docs.map((doc) => {
+            const d = doc.data();
+            return {
+                id: doc.id,
+                brand_id: d.brand_id,
+                item_type: (d.item_type as PinnedItemType) ?? 'copy',
+                item_id: d.item_id,
+                text: d.text,
+                prompt: d.prompt,
+                image_url: d.image_url,
+                video_url: d.video_url,
+                created_at: toIsoString(d.created_at as Timestamp) ?? '',
+            };
+        });
+    } catch (error) {
+        logFirestoreError('fetching pinned items', error);
         return [];
     }
 }

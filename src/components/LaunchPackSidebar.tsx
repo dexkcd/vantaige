@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, PlusCircle, ImageIcon, RefreshCw } from 'lucide-react';
+import { Download, PlusCircle, ImageIcon, RefreshCw, Pin } from 'lucide-react';
 import { APP_NAME } from '@/lib/branding';
 
 export interface BrandAsset {
@@ -15,9 +15,11 @@ interface LaunchPackSidebarProps {
     assets: BrandAsset[];
     onAddToPlan: (asset: BrandAsset) => void;
     onRegenerate?: (asset: BrandAsset) => void;
+    onPin?: (asset: BrandAsset) => void;
+    pinnedIds?: string[];
 }
 
-export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }: LaunchPackSidebarProps) {
+export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate, onPin, pinnedIds = [] }: LaunchPackSidebarProps) {
     return (
         <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 sm:p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
             <h2 className="text-xl font-semibold mb-1 flex justify-between items-center">
@@ -111,6 +113,19 @@ export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate }:
                                                         <PlusCircle size={12} />
                                                         Add to Plan
                                                     </button>
+                                                    {onPin && (
+                                                        <button
+                                                            onClick={() => onPin(asset)}
+                                                            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-xs transition-colors ${
+                                                                pinnedIds.includes(asset.id)
+                                                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-300 border border-neutral-700'
+                                                            }`}
+                                                            title={pinnedIds.includes(asset.id) ? 'Pinned for review' : 'Pin for review'}
+                                                        >
+                                                            <Pin size={12} />
+                                                        </button>
+                                                    )}
                                                 </>
                                             )}
                                             {onRegenerate && (

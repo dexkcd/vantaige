@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, PlusCircle, RefreshCw, Trash2, Video } from 'lucide-react';
+import { Download, PlusCircle, Pin, PinOff, RefreshCw, Trash2, Video } from 'lucide-react';
 import { APP_NAME } from '@/lib/branding';
 
 export interface ShortVideoAsset {
@@ -19,9 +19,12 @@ interface ShortsSidebarProps {
     onRefresh?: () => void;
     error?: string | null;
     onDismissError?: () => void;
+    onPin?: (short: ShortVideoAsset) => void;
+    onUnpin?: (short: ShortVideoAsset) => void;
+    pinnedIds?: string[];
 }
 
-export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, onRefresh, error, onDismissError }: ShortsSidebarProps) {
+export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, onRefresh, error, onDismissError, onPin, pinnedIds = [] }: ShortsSidebarProps) {
     const handleDownload = (short: ShortVideoAsset) => {
         if (!short.videoUrl) return;
         window.open(short.videoUrl, '_blank', 'noopener,noreferrer');
@@ -146,6 +149,19 @@ export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, onRefresh
                                                     <PlusCircle size={12} />
                                                     Add to Plan
                                                 </button>
+                                                {onPin && (
+                                                    <button
+                                                        onClick={() => onPin(short)}
+                                                        className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-xs transition-colors ${
+                                                            pinnedIds.includes(short.id)
+                                                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                                : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-300 border border-neutral-700'
+                                                        }`}
+                                                        title={pinnedIds.includes(short.id) ? 'Pinned for review' : 'Pin for review'}
+                                                    >
+                                                        <Pin size={12} />
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                         {onDelete && (short.status === 'error' || short.status === 'generating') && (

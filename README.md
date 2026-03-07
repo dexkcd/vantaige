@@ -133,7 +133,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ### 2. 🎙️ High-Fidelity Interaction (The "Director")
 - [x] True Barge-in Support (VAD-driven buffer clearing)
-- [ ] Affective Intelligence (Tone detection & adaptation)
+- [x] Affective Intelligence (Tone detection & adaptation)
 - [x] Zero-Latency Hand-off (Syncing UI assets with voice)
 
 ### 3. 🧠 Strategic Brain (Memory Layer)
@@ -145,7 +145,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 ### 4. 🎨 Real-Time Execution
 - [x] **Nano Banana** Asset Gen: Image generation during live calls (Imagen 4.0 via Vertex AI)
 - [x] **Short-Form Video**: TikTok/YouTube Shorts (9:16) via [Veo 3.1](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/veo/3-1-generate)
-- [ ] Launch Pack Sidebar: Pinned assets & copy for review
+- [x] Launch Pack Sidebar: Pinned assets & copy for review
 - [x] Strategic Grounding: Google Search integration for trends
 
 ### 5. 🔄 The "Refine" Loop (Agentic Workflow)

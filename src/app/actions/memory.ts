@@ -20,6 +20,9 @@ import {
     hasGeneratingShortVideo,
     insertSession,
     getSessionByPasscode,
+    insertPinnedForReview,
+    deletePinnedForReview,
+    fetchPinnedForReview,
 } from '@/lib/firestore';
 import { uploadBrandAssetImage, resolveImageUrlForFirestore, getProxyUrlForGcsPath } from '@/lib/storage';
 import { GoogleGenAI, GenerateVideosOperation, VideoGenerationReferenceType } from '@google/genai';
@@ -280,6 +283,39 @@ export async function fetchBrandAssetsAction(
     brandId: string
 ): Promise<Array<{ id: string; prompt: string; image_url: string; status: string; created_at: string }>> {
     return fetchBrandAssets(brandId);
+}
+
+// ---------------------------------------------------------------------------
+// Pinned for Review (Launch Pack)
+// ---------------------------------------------------------------------------
+
+export type PinnedItemType = 'asset' | 'short' | 'copy';
+
+export interface PinnedForReviewItem {
+    id: string;
+    brand_id: string;
+    item_type: PinnedItemType;
+    item_id?: string;
+    text?: string;
+    prompt?: string;
+    image_url?: string;
+    video_url?: string;
+    created_at: string;
+}
+
+export async function pinForReviewAction(
+    brandId: string,
+    data: { item_type: PinnedItemType; item_id?: string; text?: string; prompt?: string; image_url?: string; video_url?: string }
+): Promise<{ id: string } | null> {
+    return insertPinnedForReview(brandId, data);
+}
+
+export async function unpinFromReviewAction(brandId: string, pinId: string): Promise<boolean> {
+    return deletePinnedForReview(brandId, pinId);
+}
+
+export async function fetchPinnedForReviewAction(brandId: string): Promise<PinnedForReviewItem[]> {
+    return fetchPinnedForReview(brandId);
 }
 
 export type KanbanTaskStatus = 'draft' | 'pending' | 'in_progress' | 'done';

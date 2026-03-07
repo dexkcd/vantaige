@@ -12,6 +12,10 @@ Welcome, Agent. This document provides the essential context, technical standard
 - [Project Overview](PROJECT.md)
 - **Always update the project documentation when a new feature is added or an existing feature is modified.**
 
+## Project README
+- [Project Overview](README.md)
+- **Always update the readme documentation when a new feature is added or an existing feature is modified.**
+
 ## 🛠 Tech Stack
 - **Infrastructure**: Always prioritize solutions to use Google Cloud whenever possible 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
