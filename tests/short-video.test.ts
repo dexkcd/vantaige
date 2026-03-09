@@ -6,6 +6,7 @@ const mockGetShortVideoById = vi.fn();
 const mockGetBrandAssetById = vi.fn();
 const mockUpsertVibeProfile = vi.fn();
 const mockHasGeneratingShortVideo = vi.fn();
+const mockGetShortVideoUsageForToday = vi.fn();
 const mockCreateSignedUrlForGcsPath = vi.fn();
 const mockGetProxyUrlForGcsPath = vi.fn();
 
@@ -16,6 +17,8 @@ vi.mock('@/lib/firestore', () => ({
     getBrandAssetById: (...args: unknown[]) => mockGetBrandAssetById(...args),
     upsertVibeProfile: (...args: unknown[]) => mockUpsertVibeProfile(...args),
     hasGeneratingShortVideo: (...args: unknown[]) => mockHasGeneratingShortVideo(...args),
+    getShortVideoUsageForToday: (...args: unknown[]) =>
+        mockGetShortVideoUsageForToday(...args),
 }));
 
 vi.mock('@/lib/storage', () => ({
@@ -56,6 +59,10 @@ describe('Short-form video actions', () => {
         process.env.GOOGLE_CLOUD_PROJECT = 'test-project';
         mockUpsertVibeProfile.mockResolvedValue({});
         mockHasGeneratingShortVideo.mockResolvedValue(false);
+        mockGetShortVideoUsageForToday.mockResolvedValue({
+            count: 0,
+            totalDurationSeconds: 0,
+        });
     });
 
     describe('startShortFormVideoAction', () => {
@@ -138,6 +145,34 @@ describe('Short-form video actions', () => {
             await expect(
                 startShortFormVideoAction('Another video', brandId)
             ).rejects.toThrow('A short-form video is already being generated');
+            expect(mockGenerateVideos).not.toHaveBeenCalled();
+        });
+
+        it('throws when daily video count limit is reached', async () => {
+            mockGetShortVideoUsageForToday.mockResolvedValue({
+                count: 5,
+                totalDurationSeconds: 24,
+            });
+
+            await expect(
+                startShortFormVideoAction('Daily limit test', brandId)
+            ).rejects.toThrow('Daily short-form video limit reached');
+
+            expect(mockGenerateVideos).not.toHaveBeenCalled();
+        });
+
+        it('throws when requested video would exceed daily duration limit', async () => {
+            mockGetShortVideoUsageForToday.mockResolvedValue({
+                count: 4,
+                totalDurationSeconds: 28,
+            });
+
+            await expect(
+                startShortFormVideoAction('Duration limit test', brandId, {
+                    duration_seconds: 4,
+                })
+            ).rejects.toThrow('This video would exceed the daily short-form video limit');
+
             expect(mockGenerateVideos).not.toHaveBeenCalled();
         });
 

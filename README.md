@@ -144,7 +144,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 
 ### 4. 🎨 Real-Time Execution
 - [x] **Nano Banana** Asset Gen: Image generation during live calls (Imagen 4.0 via Vertex AI)
-- [x] **Short-Form Video**: TikTok/YouTube Shorts (9:16) via [Veo 3.1](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/veo/3-1-generate)
+- [x] **Short-Form Video**: TikTok/YouTube Shorts (9:16) via [Veo 3.1](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/veo/3-1-generate), with a **daily limit of 5 videos or 30 seconds total per brand (UTC day)** to control generation costs
 - [x] Launch Pack Sidebar: Pinned assets & copy for review
 - [x] Strategic Grounding: Google Search integration for trends
 

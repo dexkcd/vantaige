@@ -18,6 +18,7 @@ import {
     getShortVideoById,
     fetchShortVideos,
     hasGeneratingShortVideo,
+    getShortVideoUsageForToday,
     insertSession,
     getSessionByPasscode,
     insertPinnedForReview,
@@ -498,6 +499,23 @@ export async function startShortFormVideoAction(
     brandId: string,
     options?: ShortFormVideoOptions
 ): Promise<{ job_id: string }> {
+    // Daily safety limits: max 5 videos or 30 seconds total per brand (UTC day)
+    const usage = await getShortVideoUsageForToday(brandId);
+
+    const rawDuration = options?.duration_seconds ?? 6;
+    const durationSeconds = [4, 6, 8].includes(rawDuration) ? (rawDuration as 4 | 6 | 8) : 6;
+
+    if (usage.count >= 5 || usage.totalDurationSeconds >= 30) {
+        throw new Error(
+            'Daily short-form video limit reached: maximum of 5 videos or 30 seconds total per day.'
+        );
+    }
+    if (usage.count + 1 > 5 || usage.totalDurationSeconds + durationSeconds > 30) {
+        throw new Error(
+            'This video would exceed the daily short-form video limit (5 videos or 30 seconds total per day).'
+        );
+    }
+
     const alreadyGenerating = await hasGeneratingShortVideo(brandId);
     if (alreadyGenerating) {
         throw new Error(
@@ -510,8 +528,6 @@ export async function startShortFormVideoAction(
     const bucket = `${projectId}.firebasestorage.app`;
     const jobId = randomUUID();
     const outputGcsUri = `gs://${bucket}/short-videos-temp/${brandId}/${jobId}/`;
-    const rawDuration = options?.duration_seconds ?? 6;
-    const durationSeconds = [4, 6, 8].includes(rawDuration) ? (rawDuration as 4 | 6 | 8) : 6;
 
     const referenceImages: Array<{ image: { imageBytes: string; mimeType: string }; referenceType: VideoGenerationReferenceType }> = [];
     if (options?.reference_asset_ids?.length) {

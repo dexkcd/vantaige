@@ -655,6 +655,44 @@ export async function hasGeneratingShortVideo(brandId: string): Promise<boolean>
     }
 }
 
+/**
+ * Returns today's short-form video usage for a brand (UTC day window).
+ * Counts non-error videos created since midnight UTC and sums their durations.
+ */
+export async function getShortVideoUsageForToday(
+    brandId: string
+): Promise<{ count: number; totalDurationSeconds: number }> {
+    try {
+        const now = new Date();
+        const startOfDayUtc = new Date(
+            Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
+        );
+        const snapshot = await db
+            .collection('short_videos')
+            .where('brand_id', '==', brandId)
+            .where('created_at', '>=', Timestamp.fromDate(startOfDayUtc))
+            .get();
+
+        let count = 0;
+        let totalDurationSeconds = 0;
+
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            const status = (data.status as ShortVideoStatus) ?? 'generating';
+            if (status === 'error') continue;
+            count += 1;
+            const duration = typeof data.duration_seconds === 'number' ? data.duration_seconds : 0;
+            totalDurationSeconds += duration;
+        }
+
+        return { count, totalDurationSeconds };
+    } catch (error) {
+        logFirestoreError('fetching today short video usage', error);
+        // Fail-open to avoid hard blocking if usage check breaks
+        return { count: 0, totalDurationSeconds: 0 };
+    }
+}
+
 export async function fetchShortVideos(brandId: string): Promise<ShortVideo[]> {
     try {
         const snap = await db
