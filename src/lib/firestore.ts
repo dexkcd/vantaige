@@ -89,6 +89,7 @@ export interface BrandAsset {
     image_url: string;
     status: string;
     created_at: string;
+    gtm_phase?: string;
 }
 
 export type ShortVideoStatus = 'generating' | 'done' | 'error';
@@ -104,6 +105,7 @@ export interface ShortVideo {
     status: ShortVideoStatus;
     operation_name?: string;
     created_at: string;
+    gtm_phase?: string;
 }
 
 export type MarketingPlanStatus = 'draft' | 'pending' | 'in_progress' | 'done';
@@ -122,6 +124,17 @@ export interface MarketingPlan {
     tags?: string[];
     status: MarketingPlanStatus;
     created_at: string;
+    gtm_phase?: string;
+}
+
+export interface GtmStrategy {
+    id: string;
+    brand_id: string;
+    name: string;
+    description?: string;
+    phases: string[];
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface Session {
@@ -151,6 +164,7 @@ export interface BlogPost {
     content: string;
     format: 'markdown' | 'html';
     created_at: string;
+    gtm_phase?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,6 +335,133 @@ export async function getSessionByPasscode(passcode: string): Promise<Session | 
 }
 
 // ---------------------------------------------------------------------------
+// GTM Strategy (one per brand/session)
+// ---------------------------------------------------------------------------
+
+export async function getGtmStrategy(brandId: string): Promise<GtmStrategy | null> {
+    try {
+        const doc = await db.collection('gtm_strategies').doc(brandId).get();
+        if (!doc.exists) return null;
+        const d = doc.data()!;
+        return {
+            id: doc.id,
+            brand_id: d.brand_id ?? brandId,
+            name: d.name ?? '',
+            description: d.description,
+            phases: Array.isArray(d.phases) ? (d.phases as string[]) : [],
+            created_at: toIsoString(d.created_at as Timestamp),
+            updated_at: toIsoString(d.updated_at as Timestamp),
+        };
+    } catch (error) {
+        logFirestoreError('fetching GTM strategy', error);
+        return null;
+    }
+}
+
+export async function upsertGtmStrategy(
+    brandId: string,
+    data: { name: string; description?: string; phases: string[] }
+): Promise<GtmStrategy | null> {
+    try {
+        const ref = db.collection('gtm_strategies').doc(brandId);
+        const now = FieldValue.serverTimestamp();
+        const snapshot = await ref.get();
+        const payload: Record<string, unknown> = {
+            brand_id: brandId,
+            name: data.name ?? '',
+            phases: Array.isArray(data.phases) ? data.phases : [],
+            updated_at: now,
+        };
+        if (data.description != null) payload.description = data.description;
+        if (!snapshot.exists) {
+            payload.created_at = now;
+        }
+        await ref.set(payload, { merge: true });
+        const doc = await ref.get();
+        const d = doc.data()!;
+        return {
+            id: doc.id,
+            brand_id: (d.brand_id as string) ?? brandId,
+            name: (d.name as string) ?? '',
+            description: d.description as string | undefined,
+            phases: Array.isArray(d.phases) ? (d.phases as string[]) : [],
+            created_at: toIsoString(d.created_at as Timestamp),
+            updated_at: toIsoString(d.updated_at as Timestamp),
+        };
+    } catch (error) {
+        logFirestoreError('upserting GTM strategy', error);
+        return null;
+    }
+}
+
+/**
+ * After a GTM strategy is updated, ensure that any tasks/assets/shorts that
+ * reference phases no longer present in the strategy are reset to unassigned.
+ */
+export async function normalizeGtmPhasesForBrand(
+    brandId: string,
+    validPhases: string[]
+): Promise<void> {
+    const phaseSet = new Set(validPhases.filter(Boolean));
+    try {
+        // Marketing plans (tasks)
+        const plansSnap = await db
+            .collection('marketing_plans')
+            .where('brand_id', '==', brandId)
+            .get();
+        const planBatch = db.batch();
+        for (const doc of plansSnap.docs) {
+            const d = doc.data();
+            const phase = (d.gtm_phase as string | undefined) ?? undefined;
+            if (phase && !phaseSet.has(phase)) {
+                planBatch.update(doc.ref, { gtm_phase: null });
+            }
+        }
+        await planBatch.commit();
+    } catch (error) {
+        logFirestoreError('normalizing GTM phases for marketing_plans', error);
+    }
+
+    try {
+        // Brand assets
+        const assetsSnap = await db
+            .collection('brand_assets')
+            .where('brand_id', '==', brandId)
+            .get();
+        const assetBatch = db.batch();
+        for (const doc of assetsSnap.docs) {
+            const d = doc.data();
+            const phase = (d.gtm_phase as string | undefined) ?? undefined;
+            if (phase && !phaseSet.has(phase)) {
+                assetBatch.update(doc.ref, { gtm_phase: null });
+            }
+        }
+        await assetBatch.commit();
+    } catch (error) {
+        logFirestoreError('normalizing GTM phases for brand_assets', error);
+    }
+
+    try {
+        // Short videos
+        const shortsSnap = await db
+            .collection('short_videos')
+            .where('brand_id', '==', brandId)
+            .get();
+        const shortBatch = db.batch();
+        for (const doc of shortsSnap.docs) {
+            const d = doc.data();
+            const phase = (d.gtm_phase as string | undefined) ?? undefined;
+            if (phase && !phaseSet.has(phase)) {
+                shortBatch.update(doc.ref, { gtm_phase: null });
+            }
+        }
+        await shortBatch.commit();
+    } catch (error) {
+        logFirestoreError('normalizing GTM phases for short_videos', error);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Marketing Plans (Kanban)
 // ---------------------------------------------------------------------------
 
@@ -347,6 +488,7 @@ export async function fetchMarketingPlans(brandId: string): Promise<MarketingPla
                 tags: d.tags as string[] | undefined,
                 status: (d.status as MarketingPlanStatus) ?? 'draft',
                 created_at: toIsoString(d.created_at as Timestamp) ?? '',
+                gtm_phase: d.gtm_phase as string | undefined,
             };
         });
     } catch (error) {
@@ -368,6 +510,7 @@ export async function insertMarketingPlan(
         caption?: string;
         tags?: string[];
         status?: MarketingPlanStatus;
+        gtm_phase?: string;
     }
 ): Promise<MarketingPlan | null> {
     try {
@@ -385,6 +528,7 @@ export async function insertMarketingPlan(
         if (data.video_asset_id != null) payload.video_asset_id = data.video_asset_id;
         if (data.caption != null) payload.caption = data.caption;
         if (data.tags != null) payload.tags = data.tags;
+        if (data.gtm_phase != null) payload.gtm_phase = data.gtm_phase;
 
         const ref = await db.collection('marketing_plans').add(payload);
         const doc = await ref.get();
@@ -403,6 +547,7 @@ export async function insertMarketingPlan(
             tags: d.tags as string[] | undefined,
             status: (d.status as MarketingPlanStatus) ?? 'draft',
             created_at: toIsoString(d.created_at as Timestamp) ?? '',
+            gtm_phase: d.gtm_phase as string | undefined,
         };
     } catch (error) {
         logFirestoreError('creating marketing plan', error);
@@ -425,6 +570,25 @@ export async function updateMarketingPlanStatus(
         return true;
     } catch (error) {
         logFirestoreError('updating marketing plan status', error);
+        return false;
+    }
+}
+
+export async function updateMarketingPlanPhase(
+    brandId: string,
+    planId: string,
+    gtmPhase: string | null
+): Promise<boolean> {
+    try {
+        const ref = db.collection('marketing_plans').doc(planId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        await ref.update({ gtm_phase: gtmPhase ?? null });
+        return true;
+    } catch (error) {
+        logFirestoreError('updating marketing plan phase', error);
         return false;
     }
 }
@@ -467,6 +631,7 @@ export async function getBrandAssetById(
             image_url: d.image_url ?? '',
             status: d.status ?? 'done',
             created_at: toIsoString(d.created_at as Timestamp) ?? '',
+            gtm_phase: d.gtm_phase as string | undefined,
         };
     } catch (error) {
         logFirestoreError('fetching brand asset by id', error);
@@ -511,11 +676,31 @@ export async function fetchBrandAssets(brandId: string): Promise<BrandAsset[]> {
                 image_url: d.image_url ?? '',
                 status: d.status ?? 'done',
                 created_at: toIsoString(d.created_at as Timestamp) ?? '',
+                gtm_phase: d.gtm_phase as string | undefined,
             };
         });
     } catch (error) {
         logFirestoreError('fetching brand assets', error);
         return [];
+    }
+}
+
+export async function updateBrandAssetPhase(
+    brandId: string,
+    assetId: string,
+    gtmPhase: string | null
+): Promise<boolean> {
+    try {
+        const ref = db.collection('brand_assets').doc(assetId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        await ref.update({ gtm_phase: gtmPhase ?? null });
+        return true;
+    } catch (error) {
+        logFirestoreError('updating brand asset phase', error);
+        return false;
     }
 }
 
@@ -543,6 +728,7 @@ export async function getShortVideoById(
             status: (d.status as ShortVideoStatus) ?? 'generating',
             operation_name: d.operation_name,
             created_at: toIsoString(d.created_at as Timestamp) ?? '',
+            gtm_phase: d.gtm_phase as string | undefined,
         };
     } catch (error) {
         logFirestoreError('fetching short video by id', error);
@@ -722,11 +908,31 @@ export async function fetchShortVideos(brandId: string): Promise<ShortVideo[]> {
                 status: (d.status as ShortVideoStatus) ?? 'generating',
                 operation_name: d.operation_name,
                 created_at: toIsoString(d.created_at as Timestamp) ?? '',
+                gtm_phase: d.gtm_phase as string | undefined,
             };
         });
     } catch (error) {
         logFirestoreError('fetching short videos', error);
         return [];
+    }
+}
+
+export async function updateShortVideoPhase(
+    brandId: string,
+    videoId: string,
+    gtmPhase: string | null
+): Promise<boolean> {
+    try {
+        const ref = db.collection('short_videos').doc(videoId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        await ref.update({ gtm_phase: gtmPhase ?? null });
+        return true;
+    } catch (error) {
+        logFirestoreError('updating short video phase', error);
+        return false;
     }
 }
 
@@ -815,6 +1021,7 @@ export async function insertBlogPost(
         title: string;
         content: string;
         format: 'markdown' | 'html';
+        gtm_phase?: string;
     }
 ): Promise<BlogPost | null> {
     try {
@@ -823,6 +1030,7 @@ export async function insertBlogPost(
             title: data.title ?? '',
             content: data.content ?? '',
             format: data.format ?? 'markdown',
+            gtm_phase: data.gtm_phase ?? null,
             created_at: FieldValue.serverTimestamp(),
         });
         const doc = await ref.get();
@@ -834,6 +1042,7 @@ export async function insertBlogPost(
             content: d.content ?? '',
             format: (d.format as 'markdown' | 'html') ?? 'markdown',
             created_at: toIsoString(d.created_at as Timestamp) ?? '',
+            gtm_phase: d.gtm_phase as string | undefined,
         };
     } catch (error) {
         logFirestoreError('creating blog post', error);
@@ -861,10 +1070,30 @@ export async function fetchBlogPosts(
                 content: d.content ?? '',
                 format: (d.format as 'markdown' | 'html') ?? 'markdown',
                 created_at: toIsoString(d.created_at as Timestamp) ?? '',
+                gtm_phase: d.gtm_phase as string | undefined,
             };
         });
     } catch (error) {
         logFirestoreError('fetching blog posts', error);
         return [];
+    }
+}
+
+export async function updateBlogPostPhase(
+    brandId: string,
+    postId: string,
+    gtmPhase: string | null
+): Promise<boolean> {
+    try {
+        const ref = db.collection('blog_posts').doc(postId);
+        const doc = await ref.get();
+        if (!doc.exists) return false;
+        const d = doc.data()!;
+        if (d.brand_id !== brandId) return false;
+        await ref.update({ gtm_phase: gtmPhase ?? null });
+        return true;
+    } catch (error) {
+        logFirestoreError('updating blog post phase', error);
+        return false;
     }
 }

@@ -42,6 +42,7 @@ Welcome, Agent. This document provides the essential context, technical standard
 - **Aesthetics First**: Every UI change must feel premium with non-marketers are primary users (smooth transitions, glassmorphism, curated HSL palettes).
 - **Communication**: Use `src/lib/firestore.ts` for all database interactions.
 - **Process Memory**: Always check for existing "vibe profiles" before starting a new session.
+- **GTM Strategy**: The AI can define or update a Go-To-Market strategy (name, phases) and assign tasks and assets to phases via `create_or_update_gtm_strategy`, `create_kanban_task` (with `gtm_phase`), and `assign_asset_to_gtm_phase`.
 - **No Placeholders**: Use `generate_image` or actual assets; avoid generic placeholders.
 - **Always write tests for new features**: Never skip writing tests for new features. Tests should be written in the `tests/` directory and should be run using the `npm run test` command. 
 - **Always run tests before committing**: Never commit code without running tests first. Use `npm run test` to run all tests.

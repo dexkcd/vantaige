@@ -9,6 +9,7 @@ export interface BrandAsset {
     prompt: string;
     status: 'pending' | 'generating' | 'done' | 'error';
     dataUrl?: string;
+    gtm_phase?: string;
 }
 
 interface LaunchPackSidebarProps {
@@ -17,9 +18,11 @@ interface LaunchPackSidebarProps {
     onRegenerate?: (asset: BrandAsset) => void;
     onPin?: (asset: BrandAsset) => void;
     pinnedIds?: string[];
+    gtmPhases?: string[];
+    onAssignToPhase?: (assetId: string, phase: string) => void;
 }
 
-export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate, onPin, pinnedIds = [] }: LaunchPackSidebarProps) {
+export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate, onPin, pinnedIds = [], gtmPhases = [], onAssignToPhase }: LaunchPackSidebarProps) {
     return (
         <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 sm:p-6 flex-1 overflow-hidden flex flex-col backdrop-blur-sm">
             <h2 className="text-xl font-semibold mb-1 flex justify-between items-center">
@@ -86,6 +89,33 @@ export default function LaunchPackSidebar({ assets, onAddToPlan, onRegenerate, o
                                     <p className="text-xs text-neutral-400 truncate mb-3" title={asset.prompt}>
                                         {asset.prompt}
                                     </p>
+                                    {asset.status === 'done' && gtmPhases.length > 0 && onAssignToPhase && (
+                                        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                                            <span className="text-[10px] text-neutral-500 mr-1">Phase:</span>
+                                            {asset.gtm_phase ? (
+                                                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">{asset.gtm_phase}</span>
+                                            ) : (
+                                                <span className="text-[10px] text-neutral-600">Unassigned</span>
+                                            )}
+                                            {gtmPhases.map((phase) => (
+                                                <button
+                                                    key={phase}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (asset.gtm_phase === phase) return;
+                                                        onAssignToPhase(asset.id, phase);
+                                                    }}
+                                                    className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                                        asset.gtm_phase === phase
+                                                            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                                                            : 'border-neutral-700 text-neutral-500 hover:border-neutral-600 hover:text-neutral-400'
+                                                    }`}
+                                                >
+                                                    {phase}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     {(asset.status === 'done' || asset.status === 'error') && (
                                         <div className="flex gap-2">
                                             {asset.status === 'done' && (

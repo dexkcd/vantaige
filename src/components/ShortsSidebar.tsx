@@ -10,6 +10,7 @@ export interface ShortVideoAsset {
     prompt: string;
     status: 'generating' | 'done' | 'error';
     videoUrl?: string;
+    gtm_phase?: string;
 }
 
 interface ShortsSidebarProps {
@@ -22,9 +23,11 @@ interface ShortsSidebarProps {
     onPin?: (short: ShortVideoAsset) => void;
     onUnpin?: (short: ShortVideoAsset) => void;
     pinnedIds?: string[];
+    gtmPhases?: string[];
+    onAssignToPhase?: (shortId: string, phase: string) => void;
 }
 
-export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, onRefresh, error, onDismissError, onPin, pinnedIds = [] }: ShortsSidebarProps) {
+export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, onRefresh, error, onDismissError, onPin, pinnedIds = [], gtmPhases = [], onAssignToPhase }: ShortsSidebarProps) {
     const handleDownload = (short: ShortVideoAsset) => {
         if (!short.videoUrl) return;
         window.open(short.videoUrl, '_blank', 'noopener,noreferrer');
@@ -132,6 +135,33 @@ export default function ShortsSidebar({ shorts, onAddToPlan, onDelete, onRefresh
                                     <p className="text-xs text-neutral-400 truncate mb-3" title={short.prompt}>
                                         {short.prompt}
                                     </p>
+                                    {short.status === 'done' && gtmPhases.length > 0 && onAssignToPhase && (
+                                        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                                            <span className="text-[10px] text-neutral-500 mr-1">Phase:</span>
+                                            {short.gtm_phase ? (
+                                                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">{short.gtm_phase}</span>
+                                            ) : (
+                                                <span className="text-[10px] text-neutral-600">Unassigned</span>
+                                            )}
+                                            {gtmPhases.map((phase) => (
+                                                <button
+                                                    key={phase}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (short.gtm_phase === phase) return;
+                                                        onAssignToPhase(short.id, phase);
+                                                    }}
+                                                    className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                                        short.gtm_phase === phase
+                                                            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                                                            : 'border-neutral-700 text-neutral-500 hover:border-neutral-600 hover:text-neutral-400'
+                                                    }`}
+                                                >
+                                                    {phase}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="flex gap-2 items-center">
                                         {short.status === 'done' && (
                                             <>

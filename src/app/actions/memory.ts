@@ -11,7 +11,13 @@ import {
     fetchBrandAssets,
     getBrandAssetById,
     updateMarketingPlanStatus,
+    updateMarketingPlanPhase,
     deleteMarketingPlan,
+    getGtmStrategy,
+    upsertGtmStrategy,
+    normalizeGtmPhasesForBrand,
+    updateBrandAssetPhase,
+    updateShortVideoPhase,
     insertShortVideo,
     updateShortVideo,
     deleteShortVideo,
@@ -26,6 +32,7 @@ import {
     fetchPinnedForReview,
     insertBlogPost,
     fetchBlogPosts,
+    updateBlogPostPhase,
 } from '@/lib/firestore';
 import { uploadBrandAssetImage, resolveImageUrlForFirestore, getProxyUrlForGcsPath } from '@/lib/storage';
 import { GoogleGenAI, GenerateVideosOperation, VideoGenerationReferenceType } from '@google/genai';
@@ -63,6 +70,7 @@ export interface MarketingPlan {
     caption?: string;
     tags?: string[];
     created_at?: string;
+    gtm_phase?: string;
 }
 
 export interface SessionLog {
@@ -104,6 +112,37 @@ export async function getSessionByPasscodeAction(
 ): Promise<{ session_id: string } | null> {
     const session = await getSessionByPasscode(passcode);
     return session ? { session_id: session.id } : null;
+}
+
+/**
+ * Fetches the GTM strategy for a brand/session (one per session).
+ */
+export async function getGtmStrategyAction(brandId: string): Promise<{
+    id: string;
+    brand_id: string;
+    name: string;
+    description?: string;
+    phases: string[];
+    created_at?: string;
+    updated_at?: string;
+} | null> {
+    return getGtmStrategy(brandId);
+}
+
+/**
+ * Creates or updates the GTM strategy for a brand/session.
+ */
+export async function upsertGtmStrategyAction(
+    brandId: string,
+    name: string,
+    phases: string[],
+    description?: string
+): Promise<{ id: string; name: string; description?: string; phases: string[] } | null> {
+    const result = await upsertGtmStrategy(brandId, { name, description, phases });
+    if (!result) return null;
+    // Clear any stale GTM phases that no longer exist on the strategy
+    await normalizeGtmPhasesForBrand(brandId, result.phases);
+    return { id: result.id, name: result.name, description: result.description, phases: result.phases };
 }
 
 export async function upsertVibeProfileAction(brandId: string, brandIdentity: string) {
@@ -312,7 +351,7 @@ In all cases:
 export async function fetchBlogPostsAction(
     brandId: string,
     limit?: number
-): Promise<Array<{ id: string; title: string; content: string; format: BlogPostFormat; created_at: string }>> {
+): Promise<Array<{ id: string; title: string; content: string; format: BlogPostFormat; created_at: string; gtm_phase?: string }>> {
     const posts = await fetchBlogPosts(brandId, limit);
     return posts.map((p) => ({
         id: p.id,
@@ -320,7 +359,16 @@ export async function fetchBlogPostsAction(
         content: p.content,
         format: p.format,
         created_at: p.created_at,
+        gtm_phase: p.gtm_phase,
     }));
+}
+
+export async function updateBlogPostPhaseAction(
+    brandId: string,
+    postId: string,
+    gtmPhase: string | null
+): Promise<boolean> {
+    return updateBlogPostPhase(brandId, postId, gtmPhase);
 }
 
 /** Max reference image size (chars) to avoid Server Action serialization limits */
@@ -410,7 +458,7 @@ export async function saveBrandAssetAction(
  */
 export async function fetchBrandAssetsAction(
     brandId: string
-): Promise<Array<{ id: string; prompt: string; image_url: string; status: string; created_at: string }>> {
+): Promise<Array<{ id: string; prompt: string; image_url: string; status: string; created_at: string; gtm_phase?: string }>> {
     return fetchBrandAssets(brandId);
 }
 
@@ -465,6 +513,7 @@ export async function fetchKanbanTasksAction(
     caption?: string;
     tags?: string[];
     status: KanbanTaskStatus;
+    gtm_phase?: string;
 }>> {
     const plans = await fetchMarketingPlans(brandId);
     const tasks = await Promise.all(
@@ -487,6 +536,7 @@ export async function fetchKanbanTasksAction(
                 caption: row.caption,
                 tags: row.tags,
                 status: (row.status as KanbanTaskStatus) || 'draft',
+                gtm_phase: row.gtm_phase,
             };
         })
     );
@@ -531,6 +581,7 @@ export async function createKanbanTaskAction(
         prompt_for_caption?: string;
         tags?: string[];
         status?: KanbanTaskStatus;
+        gtm_phase?: string;
     }
 ): Promise<MarketingPlan & { id: string }> {
     await upsertVibeProfile({ id: brandId, brand_identity: 'Default' });
@@ -570,11 +621,38 @@ export async function createKanbanTaskAction(
         caption: caption || undefined,
         tags: options?.tags,
         status: options?.status ?? 'draft',
+        gtm_phase: options?.gtm_phase,
     });
     if (!result) {
         throw new Error('Failed to create kanban task');
     }
     return result;
+}
+
+/**
+ * Updates a kanban task's GTM phase.
+ */
+export async function updateKanbanTaskPhaseAction(
+    brandId: string,
+    taskId: string,
+    gtmPhase: string | null
+): Promise<boolean> {
+    return updateMarketingPlanPhase(brandId, taskId, gtmPhase);
+}
+
+/**
+ * Assigns a brand asset or short video to a GTM phase.
+ */
+export async function assignAssetToGtmPhaseAction(
+    brandId: string,
+    itemType: 'brand_asset' | 'short_video',
+    itemId: string,
+    phase: string
+): Promise<boolean> {
+    if (itemType === 'brand_asset') {
+        return updateBrandAssetPhase(brandId, itemId, phase);
+    }
+    return updateShortVideoPhase(brandId, itemId, phase);
 }
 
 /**

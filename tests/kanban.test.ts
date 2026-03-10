@@ -54,13 +54,13 @@ describe('Kanban task actions', () => {
                 'A test task'
             );
 
-            expect(mockInsertMarketingPlan).toHaveBeenCalledWith(brandId, {
+            expect(mockInsertMarketingPlan).toHaveBeenCalledWith(brandId, expect.objectContaining({
                 title: 'Test Task',
                 platform: 'Instagram',
                 priority: 'high',
                 description: 'A test task',
                 status: 'draft',
-            });
+            }));
             expect(result.id).toBe('task-1');
             expect(result.title).toBe('Test Task');
         });
@@ -180,6 +180,38 @@ describe('Kanban task actions', () => {
                 video_url: 'https://storage.example.com/short.mp4',
                 caption: 'Check out our new short!',
             }));
+        });
+
+        it('passes gtm_phase when provided', async () => {
+            mockInsertMarketingPlan.mockResolvedValue({
+                id: 'task-gtm',
+                brand_id: brandId,
+                title: 'Launch asset',
+                platform: 'Instagram',
+                priority: 'high',
+                description: 'For launch phase',
+                status: 'draft',
+                gtm_phase: 'Launch',
+                created_at: new Date().toISOString(),
+            });
+
+            const result = await createKanbanTaskAction(
+                brandId,
+                'Launch asset',
+                'Instagram',
+                'high',
+                'For launch phase',
+                { gtm_phase: 'Launch' }
+            );
+
+            expect(mockInsertMarketingPlan).toHaveBeenCalledWith(brandId, expect.objectContaining({
+                title: 'Launch asset',
+                platform: 'Instagram',
+                priority: 'high',
+                description: 'For launch phase',
+                gtm_phase: 'Launch',
+            }));
+            expect(result.gtm_phase).toBe('Launch');
         });
 
         it('throws when insertMarketingPlan returns null', async () => {

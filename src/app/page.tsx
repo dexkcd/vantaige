@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { marked } from 'marked';
 import { useCompositor } from '@/hooks/useCompositor';
 import { useAudioPipeline } from '@/hooks/useAudioPipeline';
 import { Mic, MicOff, Video, VideoOff, Monitor, Play, Square, Loader2, Cpu, AlertCircle, TrendingUp, X, Trash2, Copy, Check, RefreshCw, Pin, PinOff } from 'lucide-react';
@@ -13,10 +14,14 @@ import {
   generateBlogPostAction,
   createKanbanTaskAction,
   updateKanbanTaskStatusAction,
+  updateKanbanTaskPhaseAction,
   deleteKanbanTaskAction,
   saveBrandAssetAction,
   fetchBrandAssetsAction,
   fetchKanbanTasksAction,
+  getGtmStrategyAction,
+  upsertGtmStrategyAction,
+  assignAssetToGtmPhaseAction,
   getCrossSessionTrendAnalysisAction,
   startShortFormVideoAction,
   checkShortFormVideoStatusAction,
@@ -27,6 +32,8 @@ import {
   pinForReviewAction,
   unpinFromReviewAction,
   fetchPinnedForReviewAction,
+  fetchBlogPostsAction,
+  updateBlogPostPhaseAction,
 } from './actions/memory';
 import { compressBase64Image } from '@/lib/compressImage';
 import LaunchPackSidebar, { BrandAsset } from '@/components/LaunchPackSidebar';
@@ -62,6 +69,7 @@ export interface KanbanTask {
   caption?: string;
   tags?: string[];
   status: KanbanTaskStatus;
+  gtm_phase?: string;
 }
 
 const priorityColors: Record<string, string> = {
@@ -84,6 +92,77 @@ const statusLabels: Record<KanbanTaskStatus, string> = {
   done: 'Done',
 };
 
+function TaskCard({
+  task,
+  onClick,
+  statusColors,
+  statusLabels,
+  priorityColors,
+  toDisplayUrl,
+}: {
+  task: KanbanTask;
+  onClick: () => void;
+  statusColors: Record<KanbanTaskStatus, string>;
+  statusLabels: Record<KanbanTaskStatus, string>;
+  priorityColors: Record<string, string>;
+  toDisplayUrl: (url?: string) => string | undefined;
+}) {
+  return (
+    <motion.button
+      type="button"
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      onClick={onClick}
+      className="w-full text-left p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+    >
+      <div className="flex gap-3">
+        {task.image_url ? (
+          <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-neutral-800">
+            <img src={toDisplayUrl(task.image_url) || task.image_url} alt="" className="w-full h-full object-cover" />
+          </div>
+        ) : task.video_url ? (
+          <div className="shrink-0 w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center">
+            <Video size={20} className="text-indigo-400" />
+          </div>
+        ) : null}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <p className="text-sm text-neutral-200 font-medium leading-tight">{task.title}</p>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusColors[task.status || 'draft']}`}>
+                {statusLabels[task.status || 'draft']}
+              </span>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${priorityColors[task.priority] || priorityColors.medium}`}>
+                {task.priority}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className="text-[10px] bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-md">{task.platform}</span>
+            {task.gtm_phase && <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-md">{task.gtm_phase}</span>}
+            {task.tags?.map((tag) => (
+              <span key={tag} className="text-[10px] bg-neutral-800/80 text-neutral-500 px-1.5 py-0.5 rounded">
+                #{tag}
+              </span>
+            ))}
+          </div>
+          {task.caption && (
+            <p className="text-xs text-neutral-500 mt-1.5 line-clamp-1">{task.caption}</p>
+          )}
+          {task.description && !task.caption && (
+            <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{task.description}</p>
+          )}
+          {task.description && task.caption && (
+            <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{task.description}</p>
+          )}
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
 export default function Dashboard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -98,12 +177,14 @@ export default function Dashboard() {
   // New state for Live Execution Bridge
   const [isToolPending, setIsToolPending] = useState(false);
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
-  const [shortVideos, setShortVideos] = useState<Array<{ id: string; prompt: string; status: 'generating' | 'done' | 'error'; videoUrl?: string }>>([]);
+  const [shortVideos, setShortVideos] = useState<Array<{ id: string; prompt: string; status: 'generating' | 'done' | 'error'; videoUrl?: string; gtm_phase?: string }>>([]);
   const [shortVideoError, setShortVideoError] = useState<string | null>(null);
   const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null);
+  const [gtmStrategy, setGtmStrategy] = useState<{ id: string; name: string; description?: string; phases: string[] } | null>(null);
   const [pinnedItems, setPinnedItems] = useState<Array<{ id: string; item_type: 'asset' | 'short' | 'copy'; item_id?: string; text?: string; prompt?: string; image_url?: string; video_url?: string }>>([]);
   const [blogPreview, setBlogPreview] = useState<{ title: string; content: string; format: 'markdown' | 'html'; prompt?: string } | null>(null);
+  const [blogPosts, setBlogPosts] = useState<Array<{ id: string; title: string; content: string; format: 'markdown' | 'html'; created_at: string; gtm_phase?: string }>>([]);
 
   // Cross-session trend analysis
   const [trendAnalysis, setTrendAnalysis] = useState<string | null>(null);
@@ -182,6 +263,7 @@ export default function Dashboard() {
           prompt: a.prompt,
           status: (a.status as BrandAsset['status']) || 'done',
           dataUrl: toDisplayUrl(a.image_url) ?? a.image_url,
+          gtm_phase: a.gtm_phase,
         })));
       } catch (e) {
         console.error('Failed to load brand assets:', e);
@@ -202,6 +284,7 @@ export default function Dashboard() {
           prompt: v.prompt,
           status: v.status as 'generating' | 'done' | 'error',
           videoUrl: v.video_url,
+          gtm_phase: v.gtm_phase,
         }));
         setShortVideos(mapped);
         if (mapped.length > 0) setLaunchPackTab('shorts');
@@ -213,6 +296,18 @@ export default function Dashboard() {
         setPinnedItems(pinned);
       } catch (e) {
         console.error('Failed to load pinned items:', e);
+      }
+      try {
+        const strategy = await getGtmStrategyAction(sessionId);
+        setGtmStrategy(strategy ? { id: strategy.id, name: strategy.name, description: strategy.description, phases: strategy.phases } : null);
+      } catch (e) {
+        console.error('Failed to load GTM strategy:', e);
+      }
+      try {
+        const posts = await fetchBlogPostsAction(sessionId, 50);
+        setBlogPosts(posts);
+      } catch (e) {
+        console.error('Failed to load blog posts:', e);
       }
     };
     loadContext();
@@ -252,10 +347,11 @@ CONSENT FOR GENERATION: You MUST NOT call generate_brand_asset, generate_short_f
 GENERATION ANNOUNCEMENTS: When you call generate_brand_asset, generate_short_form_video, or generate_blog_post, you MUST ALWAYS: (1) Announce START—e.g. "Starting image generation now...", "Generating your video now—this will take about a minute or two.", or "Writing your blog post now...". (2) Announce END—after the tool returns, say something like "Done! Your [image/video/post] is ready in the Launch Pack." Never silently generate; the user must hear when generation begins and when it completes.
 
 TOOLS: Call each tool ONCE per user request—never duplicate. After a tool returns, always give a brief verbal confirmation (e.g. "Done, I've added that to your Launch Pack" or "I've started generating your video—it'll be ready in a minute or two").
-- finalize_marketing_strategy: Set the current strategy phase.
+- create_or_update_gtm_strategy: Creates or updates the persisted GTM (Go-To-Market) strategy for this session. Call when the user wants to define or change their GTM strategy. Provide name, phases (ordered array, e.g. ["Awareness", "Consideration", "Launch", "Retention"]), and optional description. This is saved to the dashboard so tasks and assets can be assigned to phases.
 - generate_brand_asset: Call ONLY after user gives explicit permission. When they ask for a logo, banner, image, or visual asset, first describe it and ask "Should I generate it?" or "Want me to go ahead?" Only call after yes. Use a rich, brand-aware prompt. When they have screen share or camera on, you can request assets "based on what you see." ALWAYS announce when you start ("Starting image generation now...") and when it completes ("Done! Your image is in the Launch Pack.").
 - generate_short_form_video: Call ONLY after user gives explicit permission. When they want a TikTok or YouTube Short, first summarize the video and ask "Should I generate it?" Only call after yes. CRITICAL: The video_prompt MUST be a structured mini-spec (80–150 words), NOT a vague vibe. Use this skeleton: (1) Video type & goal; (2) Visual formula — Camera/shot, Subject, Action, Setting, Style & mood; (3) Text/CTA — Add ONE clear CTA as text overlay at the END only. Format: "Add only this exact text overlay, nothing else: '[CTA phrase]' at [last 2–3 seconds], center or bottom, clean sans serif. No typos, no emojis, no extra words."; (4) Brand guardrails; (5) Optional structure. Use reference_asset_ids for brand assets. Generation takes 1–3 min. ALWAYS announce when you start ("Generating your video now—this will take about a minute or two.") and when it completes ("Done! Your video is ready in the Shorts section.").
-- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). Before calling, CHECK if you've already added a task with the same or very similar title in this session—do NOT create duplicates. For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. For TikTok/YouTube Shorts video posts, include video_asset_id (from prior generate_short_form_video). IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the asset on the platform.
+- create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). Optionally include gtm_phase (string) to assign the task to a GTM strategy phase (e.g. "Launch", "Awareness"). Before calling, CHECK if you've already added a task with the same or very similar title in this session—do NOT create duplicates. For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. For TikTok/YouTube Shorts video posts, include video_asset_id (from prior generate_short_form_video). IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the asset on the platform.
+- assign_asset_to_gtm_phase: Assigns an existing brand asset or short video to a GTM strategy phase. Use when the user says to put an asset or short into a specific phase (e.g. "Put that logo in the Launch phase"). Provide item_type ("brand_asset" or "short_video"), item_id (the asset or video ID), and phase (string matching a phase name from the GTM strategy).
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
 - pin_copy: When suggesting social media copy, taglines, or captions for the user to review, call this to pin the copy to the Launch Pack Review tab.
 - generate_blog_post: When the user wants a blog post or long-form article for Medium, Ghost, Substack, or their site, call this with topic (and optional notes, format, length, angle, audience). The post is saved in Firestore and pinned in the Launch Pack with a preview. First describe what you'll write and ask for confirmation; then call the tool. Announce when you start and when the post is ready.
@@ -269,12 +365,16 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         {
           functionDeclarations: [
             {
-              name: 'finalize_marketing_strategy',
-              description: 'Sets the current marketing strategy phase based on conversation.',
+              name: 'create_or_update_gtm_strategy',
+              description: 'Creates or updates the persisted GTM (Go-To-Market) strategy for this session. Use when the user wants to define or change their GTM strategy (e.g. phases like Awareness, Consideration, Launch, Retention). Saved so tasks and assets can be assigned to phases.',
               parameters: {
                 type: 'object',
-                properties: { phase: { type: 'string', description: 'The strategy phase name' } },
-                required: ['phase'],
+                properties: {
+                  name: { type: 'string', description: 'Name of the GTM strategy (e.g. "Q2 Launch")' },
+                  phases: { type: 'array', items: { type: 'string' }, description: 'Ordered list of phase names (e.g. ["Awareness", "Consideration", "Launch", "Retention"])' },
+                  description: { type: 'string', description: 'Optional short description of the strategy' },
+                },
+                required: ['name', 'phases'],
               },
             },
             {
@@ -327,8 +427,22 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     enum: ['draft', 'pending', 'in_progress', 'done'],
                     description: 'Optional. Task status. Defaults to draft.',
                   },
+                  gtm_phase: { type: 'string', description: 'Optional. GTM strategy phase to assign this task to (e.g. "Launch", "Awareness")' },
                 },
                 required: ['title', 'description', 'platform', 'priority'],
+              },
+            },
+            {
+              name: 'assign_asset_to_gtm_phase',
+              description: 'Assigns an existing brand asset or short video to a GTM strategy phase. Use when the user wants to put an asset or short into a specific phase.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  item_type: { type: 'string', enum: ['brand_asset', 'short_video'], description: 'Type of item to assign' },
+                  item_id: { type: 'string', description: 'ID of the brand asset or short video' },
+                  phase: { type: 'string', description: 'Name of the GTM phase (e.g. "Launch", "Awareness")' },
+                },
+                required: ['item_type', 'item_id', 'phase'],
               },
             },
             {
@@ -471,11 +585,12 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
 
     // 1b. Load Launch Pack data (shorts, assets, tasks) — ensures they show on continue session
     // Use allSettled so one failure doesn't block the others
-    const [assetsResult, tasksResult, shortsResult, pinnedResult] = await Promise.allSettled([
+    const [assetsResult, tasksResult, shortsResult, pinnedResult, gtmStrategyResult] = await Promise.allSettled([
       fetchBrandAssetsAction(effectiveScope),
       fetchKanbanTasksAction(effectiveScope),
       fetchShortVideosAction(effectiveScope),
       fetchPinnedForReviewAction(effectiveScope),
+      getGtmStrategyAction(effectiveScope),
     ]);
     if (assetsResult.status === 'fulfilled') {
       setBrandAssets(assetsResult.value.map(a => ({
@@ -483,6 +598,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         prompt: a.prompt,
         status: (a.status as BrandAsset['status']) || 'done',
         dataUrl: toDisplayUrl(a.image_url) ?? a.image_url,
+        gtm_phase: a.gtm_phase,
       })));
     }
     if (tasksResult.status === 'fulfilled') {
@@ -497,6 +613,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         prompt: v.prompt,
         status: v.status as 'generating' | 'done' | 'error',
         videoUrl: v.video_url,
+        gtm_phase: v.gtm_phase,
       }));
       setShortVideos(shorts);
       // Auto-switch to Shorts tab when continuing a session with existing shorts
@@ -504,6 +621,10 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
     if (pinnedResult.status === 'fulfilled') {
       setPinnedItems(pinnedResult.value);
+    }
+    if (gtmStrategyResult.status === 'fulfilled' && gtmStrategyResult.value) {
+      const s = gtmStrategyResult.value;
+      setGtmStrategy({ id: s.id, name: s.name, description: s.description, phases: s.phases });
     }
 
     // 2. Inject Memory Block into System Instruction
@@ -720,9 +841,82 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     // Activate the "thinking" pulse as soon as a tool call is received
     setIsToolPending(true);
 
-    if (name === 'finalize_marketing_strategy') {
-      sessionNotesRef.current.push(`Moved strategy phase to: ${args.phase}`);
-      sendToolResponse(id, name, { success: true, phase: args.phase });
+    if (name === 'create_or_update_gtm_strategy') {
+      const { name: strategyName, phases, description: strategyDescription } = args;
+      const phasesArr = Array.isArray(phases) ? (phases as string[]) : [];
+      if (!strategyName || phasesArr.length === 0) {
+        sendToolResponse(id, name, {
+          success: false,
+          error: 'name and phases (non-empty array) are required.',
+        });
+        setIsToolPending(false);
+        return;
+      }
+      try {
+        const result = await upsertGtmStrategyAction(scopeId, strategyName, phasesArr, strategyDescription);
+        if (result) {
+          setGtmStrategy({
+            id: result.id,
+            name: result.name,
+            description: result.description,
+            phases: result.phases,
+          });
+          // Reload tasks/assets/shorts so anything that had a removed phase becomes Unassigned in the UI.
+          try {
+            const [assets, tasks, shorts] = await Promise.all([
+              fetchBrandAssetsAction(scopeId),
+              fetchKanbanTasksAction(scopeId),
+              fetchShortVideosAction(scopeId),
+            ]);
+            setBrandAssets(
+              assets.map((a) => ({
+                id: a.id,
+                prompt: a.prompt,
+                status: (a.status as BrandAsset['status']) || 'done',
+                dataUrl: toDisplayUrl(a.image_url) ?? a.image_url,
+                gtm_phase: a.gtm_phase,
+              })),
+            );
+            setKanbanTasks(
+              tasks.map((t) => ({
+                ...t,
+                status: (t.status as KanbanTaskStatus) || 'draft',
+              })),
+            );
+            setShortVideos(
+              shorts.map((v) => ({
+                id: v.id,
+                prompt: v.prompt,
+                status: v.status as 'generating' | 'done' | 'error',
+                videoUrl: v.video_url,
+                gtm_phase: v.gtm_phase,
+              })),
+            );
+          } catch (reloadErr) {
+            console.error('Failed to reload GTM-scoped data after strategy update:', reloadErr);
+          }
+          sessionNotesRef.current.push(
+            `GTM strategy updated: ${result.name} (${result.phases.join(', ')})`,
+          );
+          sendToolResponse(id, name, {
+            success: true,
+            name: result.name,
+            phases: result.phases,
+            message: `GTM strategy "${result.name}" saved with ${result.phases.length} phases.`,
+          });
+        } else {
+          sendToolResponse(id, name, {
+            success: false,
+            error: 'Failed to save GTM strategy.',
+          });
+        }
+      } catch (err) {
+        console.error('create_or_update_gtm_strategy failed:', err);
+        sendToolResponse(id, name, {
+          success: false,
+          error: 'Failed to save GTM strategy.',
+        });
+      }
 
     } else if (name === 'generate_brand_asset') {
       const alreadyGenerating = brandAssets.some(a => a.status === 'generating');
@@ -838,7 +1032,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       }
 
     } else if (name === 'create_kanban_task') {
-      const { title, platform, priority, description, asset_id, video_asset_id, caption, tags, status } = args;
+      const { title, platform, priority, description, asset_id, video_asset_id, caption, tags, status, gtm_phase } = args;
       const titleNorm = String(title || '').trim().toLowerCase();
       const isDuplicate = titleNorm && kanbanTasks.some(
         t => String(t.title || '').trim().toLowerCase() === titleNorm
@@ -856,6 +1050,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         priority: priority as KanbanTask['priority'],
         description,
         status: (status as KanbanTaskStatus) || 'draft',
+        gtm_phase: gtm_phase as string | undefined,
       };
       setKanbanTasks(prev => [optimisticTask, ...prev]);
       sessionNotesRef.current.push(`Added to roadmap: ${title} (${platform})`);
@@ -867,13 +1062,86 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           caption,
           tags: Array.isArray(tags) ? tags : undefined,
           status: status as KanbanTaskStatus | undefined,
+          gtm_phase: gtm_phase as string | undefined,
         });
         setKanbanTasks(prev =>
-          prev.map(t => t.id === tempId ? { ...t, id: saved.id || tempId, image_url: saved.image_url, video_url: saved.video_url, caption: saved.caption, tags: saved.tags } : t)
+          prev.map(t => t.id === tempId ? { ...t, id: saved.id || tempId, image_url: saved.image_url, video_url: saved.video_url, caption: saved.caption, tags: saved.tags, gtm_phase: saved.gtm_phase } : t)
         );
         sendToolResponse(id, name, { success: true, task_id: saved.id, message: `Task "${title}" added to your roadmap.` });
       } catch {
         sendToolResponse(id, name, { success: false, error: 'Failed to save task to roadmap.' });
+      }
+
+    } else if (name === 'assign_asset_to_gtm_phase') {
+      const { item_type, item_id, phase } = args;
+      if (!item_type || !item_id || !phase) {
+        sendToolResponse(id, name, { success: false, error: 'item_type, item_id, and phase are required.' });
+        setIsToolPending(false);
+        return;
+      }
+      if (item_type !== 'brand_asset' && item_type !== 'short_video') {
+        sendToolResponse(id, name, { success: false, error: 'item_type must be brand_asset or short_video.' });
+        setIsToolPending(false);
+        return;
+      }
+      try {
+        const ok = await assignAssetToGtmPhaseAction(scopeId, item_type, item_id, phase);
+        if (ok) {
+          if (item_type === 'brand_asset') {
+            const refreshed = await fetchBrandAssetsAction(scopeId);
+            setBrandAssets(refreshed.map((a) => ({ id: a.id, prompt: a.prompt, status: (a.status as BrandAsset['status']) || 'done', dataUrl: toDisplayUrl(a.image_url) ?? a.image_url, gtm_phase: a.gtm_phase })));
+
+            // Treat phase assignment for an image as "Add to Plan + set phase" (avoid duplicates).
+            const assigned = refreshed.find((a) => a.id === item_id);
+            if (assigned) {
+              const alreadyHasTask = kanbanTasks.some((t) => {
+                const sameImage =
+                  !!t.image_url &&
+                  (t.image_url === assigned.image_url ||
+                    toDisplayUrl(t.image_url) === toDisplayUrl(assigned.image_url));
+                return sameImage && (t.gtm_phase ?? '') === phase;
+              });
+              if (!alreadyHasTask) {
+                try {
+                  const saved = await createKanbanTaskAction(
+                    scopeId,
+                    `Brand Asset: ${String(assigned.prompt || '').slice(0, 40)}`,
+                    'Multi-channel',
+                    'medium',
+                    `Generated asset from prompt: ${assigned.prompt}`,
+                    { image_url: assigned.image_url, prompt_for_caption: assigned.prompt, status: 'draft', gtm_phase: phase }
+                  );
+                  const optimistic: KanbanTask = {
+                    id: saved.id,
+                    title: saved.title,
+                    platform: saved.platform || 'Multi-channel',
+                    priority: (saved.priority as KanbanTask['priority']) || 'medium',
+                    description: saved.description || '',
+                    image_url: saved.image_url,
+                    video_url: saved.video_url,
+                    caption: saved.caption,
+                    tags: saved.tags,
+                    status: 'draft',
+                    gtm_phase: saved.gtm_phase,
+                  };
+                  setKanbanTasks((prev) => [optimistic, ...prev]);
+                } catch (e) {
+                  console.error('Failed to auto-create task from assigned asset:', e);
+                }
+              }
+            }
+          } else {
+            const refreshed = await fetchShortVideosAction(scopeId);
+            setShortVideos(refreshed.map((v) => ({ id: v.id, prompt: v.prompt, status: v.status as 'generating' | 'done' | 'error', videoUrl: v.video_url, gtm_phase: v.gtm_phase })));
+          }
+          sessionNotesRef.current.push(`Assigned ${item_type} ${item_id} to phase "${phase}".`);
+          sendToolResponse(id, name, { success: true, message: `Assigned to phase "${phase}".` });
+        } else {
+          sendToolResponse(id, name, { success: false, error: 'Failed to assign asset to phase.' });
+        }
+      } catch (err) {
+        console.error('assign_asset_to_gtm_phase failed:', err);
+        sendToolResponse(id, name, { success: false, error: 'Failed to assign asset to phase.' });
       }
 
     } else if (name === 'upsert_vibe_profile') {
@@ -964,6 +1232,18 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           console.error('Failed to pin generated blog post:', e);
         }
 
+        // Keep local list of blog posts in sync for GTM views
+        setBlogPosts(prev => [
+          {
+            id: result.id,
+            title: result.title,
+            content: result.content,
+            format: result.format,
+            created_at: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+
         sessionNotesRef.current.push(
           `Generated blog post via tool: ${result.title} [format=${result.format}]`
         );
@@ -1020,6 +1300,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         prompt: v.prompt,
         status: v.status as 'generating' | 'done' | 'error',
         videoUrl: v.video_url,
+        gtm_phase: v.gtm_phase,
       })));
     };
     loadShorts();
@@ -1072,6 +1353,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         prompt: v.prompt,
         status: (v.status as 'generating' | 'done' | 'error') ?? 'generating',
         videoUrl: v.video_url,
+        gtm_phase: v.gtm_phase,
       })));
     } catch (err) {
       console.error('Failed to refresh shorts:', err);
@@ -1165,6 +1447,18 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
   };
 
+  const handleTaskPhaseChange = async (taskId: string, gtmPhase: string | null) => {
+    const ok = await updateKanbanTaskPhaseAction(scopeId, taskId, gtmPhase);
+    if (ok) {
+      setKanbanTasks(prev =>
+        prev.map(t => (t.id === taskId ? { ...t, gtm_phase: gtmPhase ?? undefined } : t))
+      );
+      if (selectedTask?.id === taskId) {
+        setSelectedTask((prev) => (prev ? { ...prev, gtm_phase: gtmPhase ?? undefined } : null));
+      }
+    }
+  };
+
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm('Delete this roadmap task? This cannot be undone.')) return;
     const ok = await deleteKanbanTaskAction(scopeId, taskId);
@@ -1216,7 +1510,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     }
   };
 
-  const parseBlogMetaFromPrompt = (prompt?: string | null): { title: string; format: 'markdown' | 'html' } => {
+    const parseBlogMetaFromPrompt = (prompt?: string | null): { title: string; format: 'markdown' | 'html' } => {
     if (!prompt) {
       return { title: 'Blog post', format: 'markdown' };
     }
@@ -1226,7 +1520,7 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
       const title = match[2].trim() || 'Blog post';
       return { title, format: fmt };
     }
-    return { title: prompt, format: 'markdown' };
+      return { title: prompt, format: 'markdown' };
   };
 
   // Session choice / pre-connect UI
@@ -1549,76 +1843,138 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
           </div>
         </section>
 
-        {/* Pane 2: Strategy Kanban */}
+        {/* Pane 2: Strategy Kanban / GTM Strategy Flow */}
         <section className="col-span-12 md:col-span-6 lg:col-span-4 lg:h-full bg-neutral-900/50 border border-neutral-800/80 rounded-3xl p-5 sm:p-6 backdrop-blur-sm lg:overflow-hidden flex flex-col min-h-[320px]">
-          <h2 className="text-xl font-semibold mb-2">Strategy Flow</h2>
-          <p className="text-xs text-neutral-500 mb-4">Roadmap tasks</p>
+          <h2 className="text-xl font-semibold mb-1">Strategy Flow</h2>
+          {gtmStrategy ? (
+            <>
+              <p className="text-sm text-neutral-400 mb-1">{gtmStrategy.name}</p>
+              {gtmStrategy.description && <p className="text-xs text-neutral-500 mb-4 line-clamp-2">{gtmStrategy.description}</p>}
+              {!gtmStrategy.description && <p className="text-xs text-neutral-500 mb-4">Tasks and assets by phase</p>}
+            </>
+          ) : (
+            <p className="text-xs text-neutral-500 mb-4">Roadmap tasks. Define a GTM strategy with phases (e.g. Awareness, Launch) to assign tasks and assets to phases.</p>
+          )}
 
-          {/* Kanban Task Cards */}
-          <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar">
-            <h3 className="text-xs text-neutral-500 uppercase tracking-wider font-semibold mb-2">Roadmap Tasks</h3>
-            <AnimatePresence mode="popLayout">
-              {kanbanTasks.length === 0 ? (
-                <motion.div key="empty-tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-6">
-                  <p className="text-xs text-neutral-600 italic">{APP_NAME} will add tasks to your roadmap here.</p>
-                </motion.div>
-              ) : (
-                kanbanTasks.map(task => (
-                  <motion.button
-                    key={task.id}
-                    type="button"
-                    layout
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    onClick={() => setSelectedTask(task)}
-                    className="w-full text-left p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  >
-                    <div className="flex gap-3">
-                      {task.image_url ? (
-                        <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-neutral-800">
-                          <img src={toDisplayUrl(task.image_url) || task.image_url} alt="" className="w-full h-full object-cover" />
-                        </div>
-                      ) : task.video_url ? (
-                        <div className="shrink-0 w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center">
-                          <Video size={20} className="text-indigo-400" />
-                        </div>
-                      ) : null}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="text-sm text-neutral-200 font-medium leading-tight">{task.title}</p>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusColors[task.status || 'draft']}`}>
-                              {statusLabels[task.status || 'draft']}
-                            </span>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${priorityColors[task.priority] || priorityColors.medium}`}>
-                              {task.priority}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className="text-[10px] bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-md">{task.platform}</span>
-                          {task.tags?.map((tag) => (
-                            <span key={tag} className="text-[10px] bg-neutral-800/80 text-neutral-500 px-1.5 py-0.5 rounded">
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                        {task.caption && (
-                          <p className="text-xs text-neutral-500 mt-1.5 line-clamp-1">{task.caption}</p>
-                        )}
-                        {task.description && !task.caption && (
-                          <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{task.description}</p>
-                        )}
-                        {task.description && task.caption && (
-                          <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{task.description}</p>
-                        )}
+          <div className="flex-1 overflow-y-auto pr-1 space-y-4 custom-scrollbar">
+            {gtmStrategy && gtmStrategy.phases.length > 0 ? (
+              <>
+                {/* Unassigned section */}
+                {(kanbanTasks.some(t => !t.gtm_phase) || brandAssets.some(a => !a.gtm_phase) || shortVideos.some(s => !s.gtm_phase) || blogPosts.some(b => !b.gtm_phase)) && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs text-neutral-500 uppercase tracking-wider font-semibold sticky top-0 bg-neutral-900/95 py-1">Unassigned</h3>
+                    {kanbanTasks.filter(t => !t.gtm_phase).map(task => (
+                      <TaskCard key={task.id} task={task} onClick={() => setSelectedTask(task)} statusColors={statusColors} statusLabels={statusLabels} priorityColors={priorityColors} toDisplayUrl={toDisplayUrl} />
+                    ))}
+                    {brandAssets.filter(a => !a.gtm_phase && a.status === 'done').map(asset => (
+                      <div key={`asset-${asset.id}`} className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-800/50 border border-neutral-700/50">
+                        {asset.dataUrl && <img src={asset.dataUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />}
+                        <span className="text-xs text-neutral-400 truncate flex-1">Image: {asset.prompt.slice(0, 40)}…</span>
+                        <span className="text-[10px] bg-neutral-700 text-neutral-500 px-2 py-0.5 rounded">Asset</span>
                       </div>
+                    ))}
+                    {shortVideos.filter(s => !s.gtm_phase && s.status === 'done').map(short => (
+                      <div key={`short-${short.id}`} className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-800/50 border border-neutral-700/50">
+                        <div className="w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center shrink-0"><Video size={18} className="text-indigo-400" /></div>
+                        <span className="text-xs text-neutral-400 truncate flex-1">{short.prompt.slice(0, 40)}…</span>
+                        <span className="text-[10px] bg-neutral-700 text-neutral-500 px-2 py-0.5 rounded">Short</span>
+                      </div>
+                    ))}
+                    {blogPosts.filter(b => !b.gtm_phase).map(post => (
+                      <div key={`blog-${post.id}`} className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-800/50 border border-neutral-700/50">
+                        <div className="w-10 h-10 rounded-lg bg-neutral-800 flex items-center justify-center shrink-0">
+                          <span className="text-[10px] text-indigo-300 font-medium">Blog</span>
+                        </div>
+                        <span className="text-xs text-neutral-400 truncate flex-1">{post.title}</span>
+                        <span className="text-[10px] bg-neutral-700 text-neutral-500 px-2 py-0.5 rounded">Blog</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Per-phase sections */}
+                {gtmStrategy.phases.map(phase => {
+                  const phaseTasks = kanbanTasks.filter(t => t.gtm_phase === phase);
+                  const phaseAssets = brandAssets.filter(a => a.gtm_phase === phase && a.status === 'done');
+                  const phaseShorts = shortVideos.filter(s => s.gtm_phase === phase && s.status === 'done');
+                  const phaseBlogs = blogPosts.filter(b => b.gtm_phase === phase);
+                  if (phaseTasks.length === 0 && phaseAssets.length === 0 && phaseShorts.length === 0 && phaseBlogs.length === 0) return null;
+                  return (
+                    <div key={phase} className="space-y-2">
+                      <h3 className="text-xs text-neutral-500 uppercase tracking-wider font-semibold sticky top-0 bg-neutral-900/95 py-1">{phase}</h3>
+                      {phaseTasks.map(task => (
+                        <TaskCard key={task.id} task={task} onClick={() => setSelectedTask(task)} statusColors={statusColors} statusLabels={statusLabels} priorityColors={priorityColors} toDisplayUrl={toDisplayUrl} />
+                      ))}
+                      {phaseAssets.map(asset => (
+                        <button
+                          key={`asset-${asset.id}`}
+                          type="button"
+                          onClick={() => {
+                            if (!asset.dataUrl) return;
+                            window.open(asset.dataUrl, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-800/50 border border-neutral-700/50 hover:border-neutral-600/60 transition-colors text-left"
+                          title="Open full image"
+                        >
+                          {asset.dataUrl && <img src={asset.dataUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />}
+                          <span className="text-xs text-neutral-400 truncate flex-1">Image: {asset.prompt.slice(0, 40)}…</span>
+                          <span className="text-[10px] bg-neutral-700 text-neutral-500 px-2 py-0.5 rounded">Asset</span>
+                        </button>
+                      ))}
+                      {phaseShorts.map(short => (
+                        <button
+                          key={`short-${short.id}`}
+                          type="button"
+                          onClick={() => {
+                            if (!short.videoUrl) return;
+                            window.open(short.videoUrl, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-800/50 border border-neutral-700/50 hover:border-neutral-600/60 transition-colors text-left"
+                          title="Open video"
+                        >
+                          <div className="w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center shrink-0"><Video size={18} className="text-indigo-400" /></div>
+                          <span className="text-xs text-neutral-400 truncate flex-1">{short.prompt.slice(0, 40)}…</span>
+                          <span className="text-[10px] bg-neutral-700 text-neutral-500 px-2 py-0.5 rounded">Short</span>
+                        </button>
+                      ))}
+                      {phaseBlogs.map(post => (
+                        <button
+                          key={`blog-${post.id}`}
+                          type="button"
+                          onClick={() => {
+                            setBlogPreview({
+                              title: post.title,
+                              format: post.format,
+                              content: post.content,
+                            });
+                          }}
+                          className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-800/50 border border-neutral-700/50 hover:border-neutral-600/60 transition-colors text-left"
+                          title="Open blog preview"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-neutral-800 flex items-center justify-center shrink-0">
+                            <span className="text-[10px] text-indigo-300 font-medium">Blog</span>
+                          </div>
+                          <span className="text-xs text-neutral-400 truncate flex-1">{post.title}</span>
+                          <span className="text-[10px] bg-neutral-700 text-neutral-500 px-2 py-0.5 rounded">Blog</span>
+                        </button>
+                      ))}
                     </div>
-                  </motion.button>
-                ))
-              )}
-            </AnimatePresence>
+                  );
+                })}
+              </>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                <h3 className="text-xs text-neutral-500 uppercase tracking-wider font-semibold mb-2">Roadmap Tasks</h3>
+                {kanbanTasks.length === 0 ? (
+                  <motion.div key="empty-tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-6">
+                    <p className="text-xs text-neutral-600 italic">{APP_NAME} will add tasks to your roadmap here. Ask to define a GTM strategy with phases (e.g. Awareness, Consideration, Launch) to organize tasks and assets by phase.</p>
+                  </motion.div>
+                ) : (
+                  kanbanTasks.map(task => (
+                    <TaskCard key={task.id} task={task} onClick={() => setSelectedTask(task)} statusColors={statusColors} statusLabels={statusLabels} priorityColors={priorityColors} toDisplayUrl={toDisplayUrl} />
+                  ))
+                )}
+              </AnimatePresence>
+            )}
           </div>
         </section>
 
@@ -1660,6 +2016,54 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               onRegenerate={handleRegenerate}
               onPin={handlePinAsset}
               pinnedIds={pinnedItems.filter(p => p.item_type === 'asset').map(p => p.item_id!).filter(Boolean)}
+              gtmPhases={gtmStrategy?.phases ?? []}
+              onAssignToPhase={gtmStrategy?.phases?.length ? async (assetId, phase) => {
+                const ok = await assignAssetToGtmPhaseAction(scopeId, 'brand_asset', assetId, phase);
+                if (ok) {
+                  const refreshed = await fetchBrandAssetsAction(scopeId);
+                  setBrandAssets(refreshed.map(a => ({ id: a.id, prompt: a.prompt, status: (a.status as BrandAsset['status']) || 'done', dataUrl: toDisplayUrl(a.image_url) ?? a.image_url, gtm_phase: a.gtm_phase })));
+
+                  // Treat phase assignment for an image as "Add to Plan + set phase" (avoid duplicates).
+                  const assigned = refreshed.find((a) => a.id === assetId);
+                  if (assigned) {
+                    const alreadyHasTask = kanbanTasks.some((t) => {
+                      const sameImage =
+                        !!t.image_url &&
+                        (t.image_url === assigned.image_url ||
+                          toDisplayUrl(t.image_url) === toDisplayUrl(assigned.image_url));
+                      return sameImage && (t.gtm_phase ?? '') === phase;
+                    });
+                    if (!alreadyHasTask) {
+                      try {
+                        const saved = await createKanbanTaskAction(
+                          scopeId,
+                          `Brand Asset: ${String(assigned.prompt || '').slice(0, 40)}`,
+                          'Multi-channel',
+                          'medium',
+                          `Generated asset from prompt: ${assigned.prompt}`,
+                          { image_url: assigned.image_url, prompt_for_caption: assigned.prompt, status: 'draft', gtm_phase: phase }
+                        );
+                        const optimistic: KanbanTask = {
+                          id: saved.id,
+                          title: saved.title,
+                          platform: saved.platform || 'Multi-channel',
+                          priority: (saved.priority as KanbanTask['priority']) || 'medium',
+                          description: saved.description || '',
+                          image_url: saved.image_url,
+                          video_url: saved.video_url,
+                          caption: saved.caption,
+                          tags: saved.tags,
+                          status: 'draft',
+                          gtm_phase: saved.gtm_phase,
+                        };
+                        setKanbanTasks((prev) => [optimistic, ...prev]);
+                      } catch (e) {
+                        console.error('Failed to auto-create task from assigned asset:', e);
+                      }
+                    }
+                  }
+                }
+              } : undefined}
             />
           )}
           {launchPackTab === 'shorts' && (
@@ -1672,6 +2076,14 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               onDismissError={() => setShortVideoError(null)}
               onPin={handlePinShort}
               pinnedIds={pinnedItems.filter(p => p.item_type === 'short').map(p => p.item_id!).filter(Boolean)}
+              gtmPhases={gtmStrategy?.phases ?? []}
+              onAssignToPhase={gtmStrategy?.phases?.length ? async (shortId, phase) => {
+                const ok = await assignAssetToGtmPhaseAction(scopeId, 'short_video', shortId, phase);
+                if (ok) {
+                  const refreshed = await fetchShortVideosAction(scopeId);
+                  setShortVideos(refreshed.map(v => ({ id: v.id, prompt: v.prompt, status: (v.status as 'generating' | 'done' | 'error') ?? 'generating', videoUrl: v.video_url, gtm_phase: v.gtm_phase })));
+                }
+              } : undefined}
             />
           )}
           {launchPackTab === 'review' && (
@@ -1723,6 +2135,37 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                             >
                               Open blog preview
                             </button>
+                            {gtmStrategy && gtmStrategy.phases.length > 0 && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-neutral-500">Phase:</span>
+                                <select
+                                  className="text-[10px] bg-neutral-900 border border-neutral-700 rounded-full px-2 py-0.5 text-neutral-300"
+                                  value={(() => {
+                                    const post = blogPosts.find(b => b.id === pin.item_id);
+                                    return post?.gtm_phase ?? '';
+                                  })()}
+                                  onChange={async (e) => {
+                                    const phase = e.target.value || null;
+                                    if (!pin.item_id) return;
+                                    const ok = await updateBlogPostPhaseAction(scopeId, pin.item_id, phase);
+                                    if (ok) {
+                                      setBlogPosts(prev =>
+                                        prev.map(b =>
+                                          b.id === pin.item_id ? { ...b, gtm_phase: phase ?? undefined } : b,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <option value="">Unassigned</option>
+                                  {gtmStrategy.phases.map(p => (
+                                    <option key={p} value={p}>
+                                      {p}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
                           </div>
                         )}
                         {pin.item_type !== 'copy' && pin.prompt && <p className="text-xs text-neutral-500 mb-2">{pin.prompt}</p>}
@@ -1803,6 +2246,38 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     ))}
                   </div>
                 </div>
+                {gtmStrategy && gtmStrategy.phases.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-neutral-300 mb-2">GTM Phase</h4>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleTaskPhaseChange(selectedTask.id, null)}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-xl border transition-colors ${
+                          !selectedTask.gtm_phase
+                            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                            : 'border-neutral-700 text-neutral-500 hover:border-neutral-600 hover:text-neutral-400'
+                        }`}
+                      >
+                        Unassigned
+                      </button>
+                      {gtmStrategy.phases.map((phase) => (
+                        <button
+                          key={phase}
+                          type="button"
+                          onClick={() => handleTaskPhaseChange(selectedTask.id, phase)}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-xl border transition-colors ${
+                            selectedTask.gtm_phase === phase
+                              ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                              : 'border-neutral-700 text-neutral-500 hover:border-neutral-600 hover:text-neutral-400'
+                          }`}
+                        >
+                          {phase}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {selectedTask.description && (
                   <div>
                     <h4 className="text-sm font-medium text-neutral-300 mb-1">Description</h4>
@@ -1889,25 +2364,54 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 shrink-0">
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-lg font-semibold text-neutral-100 truncate">{blogPreview.title}</h3>
                   <p className="text-xs text-neutral-500 mt-1">
                     {blogPreview.format === 'html' ? 'HTML blog post' : 'Markdown blog post'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setBlogPreview(null)}
-                  className="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
-                  aria-label="Close blog preview"
-                >
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(blogPreview.content);
+                      } catch {
+                        // ignore clipboard errors
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-700 text-neutral-200 hover:bg-neutral-800 transition-colors"
+                  >
+                    Copy post
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBlogPreview(null)}
+                    className="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
+                    aria-label="Close blog preview"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto p-6 custom-scrollbar">
-                <pre className="whitespace-pre-wrap text-sm text-neutral-100 font-mono bg-neutral-950 border border-neutral-800 rounded-2xl p-4">
-                  {blogPreview.content}
-                </pre>
+                {(() => {
+                  if (blogPreview.format === 'html') {
+                    return (
+                      <div
+                        className="prose prose-invert max-w-none text-sm prose-headings:text-neutral-50 prose-p:text-neutral-100 prose-strong:text-neutral-50 prose-a:text-indigo-300"
+                        dangerouslySetInnerHTML={{ __html: blogPreview.content }}
+                      />
+                    );
+                  }
+                  const html = marked.parse(blogPreview.content || '');
+                  return (
+                    <div
+                      className="prose prose-invert max-w-none text-sm prose-headings:text-neutral-50 prose-p:text-neutral-100 prose-strong:text-neutral-50 prose-a:text-indigo-300"
+                      dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                  );
+                })()}
               </div>
             </motion.div>
           </>

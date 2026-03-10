@@ -154,6 +154,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] Roadmap Task Detail View with modal, image/video posts, status workflow
 - [x] **Session Management**: New session creates passcode; Continue session restores by passcode
 - [x] **Mobile-first Studio shell**: Responsive header/actions, flexible panel heights
+- [x] **GTM Strategy**: Define a Go-To-Market strategy with phases (e.g. Awareness, Launch). AI or user can create/update the strategy; tasks and assets can be assigned to phases and viewed in a phase-grouped Strategy Flow.
 
 ---
 

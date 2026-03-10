@@ -41,7 +41,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] Roadmap Task Detail View: Clickable cards with modal; image posts (image, caption, tags); video posts (TikTok/YouTube Shorts via `video_asset_id`); status workflow (draft, pending, in progress, done)
 - [x] **Session Management**: New session creates passcode; Continue session restores by passcode. Documents owned by session.
 - [x] **Mobile-first Studio shell**: Responsive header/actions, flexible panel heights, and small-screen-safe debug/modal behavior.
-- [ ] **Next**: The "Recall" Button: Restarting sessions with specific mission context
+- [x] **GTM Strategy**: One GTM strategy per session (name, description, ordered phases). AI or user can create/update via `create_or_update_gtm_strategy`. Tasks and assets (brand images, short videos) can be assigned to phases via `create_kanban_task` (gtm_phase) or `assign_asset_to_gtm_phase`. Strategy Flow UI shows phase-grouped tasks and assets; task modal and Launch Pack support phase assignment.
 
 ---
 
@@ -72,7 +72,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - `src/app/page.tsx`: The main "Studio" UI & stream management
 - `src/lib/branding.ts`: Shared app identity constants (name, title, tagline, description)
 - `src/app/actions/memory.ts`: Server actions (Imagen, Veo 3.1, Firestore, summarization)
-- `src/lib/firestore.ts`: Database client & Firestore collections (sessions, vibe_profiles, session_logs, brand_assets, short_videos, marketing_plans)
+- `src/lib/firestore.ts`: Database client & Firestore collections (sessions, vibe_profiles, session_logs, brand_assets, short_videos, marketing_plans, gtm_strategies)
 - `src/lib/storage.ts`: Brand asset images & signed URLs for Veo video output
 - `src/components/ShortsSidebar.tsx`: Short-form video display (Launch Pack → Shorts tab)
 - `public/pcm-processor.js`: Low-level audio handling
