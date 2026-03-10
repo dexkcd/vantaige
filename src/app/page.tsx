@@ -10,6 +10,7 @@ import {
   upsertVibeProfileAction,
   summarizeSessionAction,
   generateBrandAssetAction,
+  generateBlogPostAction,
   createKanbanTaskAction,
   updateKanbanTaskStatusAction,
   deleteKanbanTaskAction,
@@ -102,6 +103,7 @@ export default function Dashboard() {
   const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null);
   const [pinnedItems, setPinnedItems] = useState<Array<{ id: string; item_type: 'asset' | 'short' | 'copy'; item_id?: string; text?: string; prompt?: string; image_url?: string; video_url?: string }>>([]);
+  const [blogPreview, setBlogPreview] = useState<{ title: string; content: string; format: 'markdown' | 'html'; prompt?: string } | null>(null);
 
   // Cross-session trend analysis
   const [trendAnalysis, setTrendAnalysis] = useState<string | null>(null);
@@ -237,17 +239,17 @@ export default function Dashboard() {
       systemInstruction: {
         parts: [
           {
-            text: `You are ${APP_NAME}, a proactive Marketing Director. The user can share their screen OR turn on their camera — you receive one at a time, never both mixed. When they share screen, you see their screen (Figma, websites, decks). When they turn on camera, you see their camera (physical product, packaging, etc.).
+            text: `You are ${APP_NAME}, a proactive Marketing Director. You can create brand images, short-form videos (TikTok/Shorts), and long-form blog posts (Markdown or HTML) that are saved and previewable in the Launch Pack—ready to paste into Medium, Ghost, Substack, or any CMS. When you greet the user or describe what you can do, mention that you can also draft blog posts from your conversation. The user can share their screen OR turn on their camera — you receive one at a time, never both mixed. When they share screen, you see their screen (Figma, websites, decks). When they turn on camera, you see their camera (physical product, packaging, etc.).
 
 PROACTIVE VISUAL AUDIT: Monitor the 1FPS video stream. If the screen-share (designs, mockups) or camera feed (physical products) shows anything that contradicts the saved Vibe Profile — wrong brand colors, inconsistent typography, off-brand imagery — interrupt and deliver a concise correction. Example: "I notice that blue on your Figma mockup doesn't match the electric indigo in your Vibe Profile — want me to flag the exact HEX?"
 
 AFFECTIVE INTELLIGENCE: Infer the user's tone and emotional state from their voice (pace, energy, word choice) and adapt your responses accordingly. If they sound frustrated or rushed → be concise, solution-focused, and avoid tangents. If they sound excited or energized → match their energy and enthusiasm. If they sound uncertain → offer reassurance and clear options. If they sound distracted or multitasking → keep responses brief and actionable. Never mention that you're "adapting to their tone" — do it naturally.
 
-COHESIVE CONVERSATION: When ANY tool is running (upsert_vibe_profile, generate_brand_asset, generate_short_form_video, create_kanban_task, pin_copy, etc.), the user may speak—e.g. refining their vibe ("actually more minimalist"), changing an asset ("make it blue"), or adding context. Treat ALL speech during tool execution as a follow-up or clarification to the CURRENT request. Do NOT start a new conversation thread. Wait for the tool result, then incorporate both the tool output and the user's additional input into a single cohesive response. One turn, one flow.
+COHESIVE CONVERSATION: When ANY tool is running (upsert_vibe_profile, generate_brand_asset, generate_short_form_video, generate_blog_post, create_kanban_task, pin_copy, etc.), the user may speak—e.g. refining their vibe ("actually more minimalist"), changing an asset ("make it blue"), or adding context. Treat ALL speech during tool execution as a follow-up or clarification to the CURRENT request. Do NOT start a new conversation thread. Wait for the tool result, then incorporate both the tool output and the user's additional input into a single cohesive response. One turn, one flow.
 
-CONSENT FOR GENERATION: You MUST NOT call generate_brand_asset or generate_short_form_video until the user gives explicit permission. When they ask for an image, logo, banner, or short-form video, first describe what you'll create and ask for confirmation—e.g. "I'll generate a logo with [description]. Should I go ahead?" or "I can create a 6-second TikTok ad with [summary]. Want me to generate it?" Only call the tool after they say yes, okay, go ahead, sure, do it, etc. Adding to tasks (create_kanban_task), pinning copy (pin_copy), and updating vibe (upsert_vibe_profile) do NOT require consent—those are fine to call when appropriate.
+CONSENT FOR GENERATION: You MUST NOT call generate_brand_asset, generate_short_form_video, or generate_blog_post until the user gives explicit permission. When they ask for an image, logo, banner, short-form video, or blog post, first describe what you'll create and ask for confirmation—e.g. "I'll generate a logo with [description]. Should I go ahead?" or "I can draft a blog post on [topic] for Medium. Want me to write it?" Only call the tool after they say yes, okay, go ahead, sure, do it, etc. Adding to tasks (create_kanban_task), pinning copy (pin_copy), and updating vibe (upsert_vibe_profile) do NOT require consent—those are fine to call when appropriate.
 
-GENERATION ANNOUNCEMENTS: When you call generate_brand_asset or generate_short_form_video, you MUST ALWAYS: (1) Announce START—say something like "Starting image generation now..." or "Generating your video now—this will take about a minute or two." (2) Announce END—after the tool returns, say something like "Done! Your [image/video] is ready in the Launch Pack." Never silently generate; the user must hear when generation begins and when it completes.
+GENERATION ANNOUNCEMENTS: When you call generate_brand_asset, generate_short_form_video, or generate_blog_post, you MUST ALWAYS: (1) Announce START—e.g. "Starting image generation now...", "Generating your video now—this will take about a minute or two.", or "Writing your blog post now...". (2) Announce END—after the tool returns, say something like "Done! Your [image/video/post] is ready in the Launch Pack." Never silently generate; the user must hear when generation begins and when it completes.
 
 TOOLS: Call each tool ONCE per user request—never duplicate. After a tool returns, always give a brief verbal confirmation (e.g. "Done, I've added that to your Launch Pack" or "I've started generating your video—it'll be ready in a minute or two").
 - finalize_marketing_strategy: Set the current strategy phase.
@@ -256,6 +258,7 @@ TOOLS: Call each tool ONCE per user request—never duplicate. After a tool retu
 - create_kanban_task: When you say "I'm adding this to your roadmap," you MUST call this tool with structured JSON (title, platform, priority, description). Before calling, CHECK if you've already added a task with the same or very similar title in this session—do NOT create duplicates. For social media image posts (Instagram, TikTok), include asset_id (from prior generate_brand_asset), caption, and tags. For TikTok/YouTube Shorts video posts, include video_asset_id (from prior generate_short_form_video). IMPORTANT: The caption MUST be engaging social media post copy (1-2 sentences) — NOT the image generation prompt. Write actual post copy that would accompany the asset on the platform.
 - upsert_vibe_profile: Update the persistent brand DNA whenever a significant brand decision is made.
 - pin_copy: When suggesting social media copy, taglines, or captions for the user to review, call this to pin the copy to the Launch Pack Review tab.
+- generate_blog_post: When the user wants a blog post or long-form article for Medium, Ghost, Substack, or their site, call this with topic (and optional notes, format, length, angle, audience). The post is saved in Firestore and pinned in the Launch Pack with a preview. First describe what you'll write and ask for confirmation; then call the tool. Announce when you start and when the post is ready.
 - end_session: End the session when the user is done.
 
 FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I've generated that logo based on the electric indigo we discussed — it's in your Launch Pack now. How does it look?"`,
@@ -347,6 +350,49 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                   prompt: { type: 'string', description: 'Optional. Context or label for this copy (e.g. "Instagram caption for product launch")' },
                 },
                 required: ['text'],
+              },
+            },
+            {
+              name: 'generate_blog_post',
+              description:
+                'Generates a long-form blog post (Markdown or HTML) based on the current conversation, vibe profile, and past sessions. Use this when the user asks for a blog post, article, or long-form content they can paste into Medium, Ghost, Substack, or their CMS.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  topic: {
+                    type: 'string',
+                    description:
+                      'Short description or working title for the blog post (e.g. "How we turn live sessions into launch packs").',
+                  },
+                  notes: {
+                    type: 'string',
+                    description:
+                      'Optional notes or bullet points capturing what the user just said that should be emphasized in the article.',
+                  },
+                  format: {
+                    type: 'string',
+                    enum: ['markdown', 'html'],
+                    description:
+                      'Output format for the blog post body. Default is markdown if not provided.',
+                  },
+                  length: {
+                    type: 'string',
+                    enum: ['short', 'medium', 'long'],
+                    description:
+                      'Approximate length: short (~600-800 words), medium (~1200-1500), long (~2000+). Defaults to medium.',
+                  },
+                  angle: {
+                    type: 'string',
+                    description:
+                      'Optional requested angle, e.g. "founder story", "deep technical breakdown", "case study", or "product launch announcement".',
+                  },
+                  audience: {
+                    type: 'string',
+                    description:
+                      'Intended audience description, e.g. "B2B SaaS founders", "growth marketers", or "ML engineers".',
+                  },
+                },
+                required: ['topic'],
               },
             },
             {
@@ -868,6 +914,74 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
         sendToolResponse(id, name, { success: false, error: 'Failed to pin copy.' });
       }
 
+    } else if (name === 'generate_blog_post') {
+      const rawTopic = args.topic;
+      const topic = typeof rawTopic === 'string' ? rawTopic.trim() : '';
+      if (!topic) {
+        sendToolResponse(id, name, {
+          success: false,
+          error: 'A non-empty "topic" is required to generate a blog post.',
+        });
+        return;
+      }
+
+      try {
+        const result = await generateBlogPostAction(scopeId, {
+          topic,
+          notes: typeof args.notes === 'string' ? args.notes : undefined,
+          format: args.format === 'html' ? 'html' : 'markdown',
+          length:
+            args.length === 'short' || args.length === 'medium' || args.length === 'long'
+              ? args.length
+              : 'medium',
+          angle: typeof args.angle === 'string' ? args.angle : undefined,
+          audience: typeof args.audience === 'string' ? args.audience : undefined,
+        });
+
+        // Optimistically pin the generated blog post into the Launch Pack Review tab
+        try {
+          const pinPrompt = `Blog post (${result.format}) – ${result.title}`;
+          const pin = await pinForReviewAction(scopeId, {
+            item_type: 'copy',
+            item_id: result.id || undefined,
+            text: result.content,
+            prompt: pinPrompt,
+          });
+          if (pin?.id) {
+            setPinnedItems(prev => [
+              {
+                id: pin.id,
+                item_type: 'copy',
+                item_id: result.id || undefined,
+                text: result.content,
+                prompt: pinPrompt,
+              },
+              ...prev,
+            ]);
+            setLaunchPackTab('review');
+          }
+        } catch (e) {
+          console.error('Failed to pin generated blog post:', e);
+        }
+
+        sessionNotesRef.current.push(
+          `Generated blog post via tool: ${result.title} [format=${result.format}]`
+        );
+        sendToolResponse(id, name, {
+          success: true,
+          id: result.id,
+          title: result.title,
+          content: result.content,
+          format: result.format,
+        });
+      } catch (err) {
+        console.error('Blog post generation failed:', err);
+        sendToolResponse(id, name, {
+          success: false,
+          error: 'Failed to generate blog post.',
+        });
+      }
+
     } else if (name === 'end_session') {
       sendToolResponse(id, name, { success: true, message: 'Session ended.' });
       sessionNotesRef.current.push('AI voluntarily ended the session.');
@@ -1100,6 +1214,19 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
     } finally {
       setIsLookingUpSession(false);
     }
+  };
+
+  const parseBlogMetaFromPrompt = (prompt?: string | null): { title: string; format: 'markdown' | 'html' } => {
+    if (!prompt) {
+      return { title: 'Blog post', format: 'markdown' };
+    }
+    const match = /^Blog post \((markdown|html)\)\s*–\s*(.+)$/i.exec(prompt);
+    if (match) {
+      const fmt = match[1].toLowerCase() === 'html' ? 'html' : 'markdown';
+      const title = match[2].trim() || 'Blog post';
+      return { title, format: fmt };
+    }
+    return { title: prompt, format: 'markdown' };
   };
 
   // Session choice / pre-connect UI
@@ -1557,33 +1684,58 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     <p className="text-sm">Pin assets or copy from Images/Shorts, or ask {APP_NAME} to suggest copy to pin.</p>
                   </div>
                 ) : (
-                  pinnedItems.map((pin) => (
-                    <div key={pin.id} className="rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950 p-3">
-                      {pin.item_type === 'asset' && pin.image_url && (
-                        <>
-                          <img src={toDisplayUrl(pin.image_url) ?? pin.image_url} alt={pin.prompt ?? ''} className="aspect-video w-full object-cover rounded-xl mb-2" />
-                          <p className="text-xs text-neutral-400 truncate mb-2" title={pin.prompt}>{pin.prompt}</p>
-                        </>
-                      )}
-                      {pin.item_type === 'short' && pin.video_url && (
-                        <>
-                          <video src={pin.video_url} className="aspect-[9/16] max-h-48 w-full object-contain rounded-xl mb-2 bg-black" muted playsInline loop />
-                          <p className="text-xs text-neutral-400 truncate mb-2" title={pin.prompt}>{pin.prompt}</p>
-                        </>
-                      )}
-                      {pin.item_type === 'copy' && (
-                        <p className="text-sm text-neutral-200 whitespace-pre-wrap">{pin.text}</p>
-                      )}
-                      {pin.item_type !== 'copy' && pin.prompt && <p className="text-xs text-neutral-500 mb-2">{pin.prompt}</p>}
-                      <button
-                        type="button"
-                        onClick={() => handleUnpin(pin.id)}
-                        className="text-xs text-neutral-400 hover:text-rose-400 transition-colors"
-                      >
-                        Unpin
-                      </button>
-                    </div>
-                  ))
+                  pinnedItems.map((pin) => {
+                    const isBlogCopy = pin.item_type === 'copy' && (pin.prompt?.toLowerCase().startsWith('blog post (') ?? false);
+                    return (
+                      <div key={pin.id} className="rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950 p-3">
+                        {pin.item_type === 'asset' && pin.image_url && (
+                          <>
+                            <img src={toDisplayUrl(pin.image_url) ?? pin.image_url} alt={pin.prompt ?? ''} className="aspect-video w-full object-cover rounded-xl mb-2" />
+                            <p className="text-xs text-neutral-400 truncate mb-2" title={pin.prompt}>{pin.prompt}</p>
+                          </>
+                        )}
+                        {pin.item_type === 'short' && pin.video_url && (
+                          <>
+                            <video src={pin.video_url} className="aspect-[9/16] max-h-48 w-full object-contain rounded-xl mb-2 bg-black" muted playsInline loop />
+                            <p className="text-xs text-neutral-400 truncate mb-2" title={pin.prompt}>{pin.prompt}</p>
+                          </>
+                        )}
+                        {pin.item_type === 'copy' && pin.prompt && (
+                          <p className="text-xs text-neutral-500 mb-2" title={pin.prompt}>{pin.prompt}</p>
+                        )}
+                        {pin.item_type === 'copy' && (
+                          <p className="text-sm text-neutral-200 whitespace-pre-wrap">{pin.text}</p>
+                        )}
+                        {isBlogCopy && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const meta = parseBlogMetaFromPrompt(pin.prompt);
+                                setBlogPreview({
+                                  title: meta.title,
+                                  format: meta.format,
+                                  content: pin.text || '',
+                                  prompt: pin.prompt,
+                                });
+                              }}
+                              className="text-xs px-2.5 py-1 rounded-full border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10 transition-colors"
+                            >
+                              Open blog preview
+                            </button>
+                          </div>
+                        )}
+                        {pin.item_type !== 'copy' && pin.prompt && <p className="text-xs text-neutral-500 mb-2">{pin.prompt}</p>}
+                        <button
+                          type="button"
+                          onClick={() => handleUnpin(pin.id)}
+                          className="mt-2 text-xs text-neutral-400 hover:text-rose-400 transition-colors"
+                        >
+                          Unpin
+                        </button>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1711,6 +1863,51 @@ FEEDBACK LOOP: After every tool result, reference it conversationally. E.g., "I'
                     Delete Task
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Blog Preview Modal ────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {blogPreview && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setBlogPreview(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed inset-4 max-h-[calc(100vh-2rem)] md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl md:max-h-[90vh] z-50 bg-neutral-900 border border-neutral-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 shrink-0">
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-100 truncate">{blogPreview.title}</h3>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {blogPreview.format === 'html' ? 'HTML blog post' : 'Markdown blog post'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBlogPreview(null)}
+                  className="p-2 rounded-xl text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
+                  aria-label="Close blog preview"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 custom-scrollbar">
+                <pre className="whitespace-pre-wrap text-sm text-neutral-100 font-mono bg-neutral-950 border border-neutral-800 rounded-2xl p-4">
+                  {blogPreview.content}
+                </pre>
               </div>
             </motion.div>
           </>

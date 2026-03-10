@@ -24,6 +24,8 @@ import {
     insertPinnedForReview,
     deletePinnedForReview,
     fetchPinnedForReview,
+    insertBlogPost,
+    fetchBlogPosts,
 } from '@/lib/firestore';
 import { uploadBrandAssetImage, resolveImageUrlForFirestore, getProxyUrlForGcsPath } from '@/lib/storage';
 import { GoogleGenAI, GenerateVideosOperation, VideoGenerationReferenceType } from '@google/genai';
@@ -193,6 +195,132 @@ Respond with only the analysis text, no preamble or headings.`;
         console.error('Cross-session trend analysis error:', error);
         throw new Error('Failed to compute trend analysis');
     }
+}
+
+export type BlogPostFormat = 'markdown' | 'html';
+export type BlogPostLength = 'short' | 'medium' | 'long';
+
+/**
+ * Generates a long-form blog post for the current brand/session, suitable for
+ * pasting into external blog platforms (Medium, Ghost, Substack, etc.).
+ * Uses the brand's Vibe Profile and recent session logs as grounding.
+ */
+export async function generateBlogPostAction(
+    brandId: string,
+    options: {
+        topic: string;
+        notes?: string;
+        format?: BlogPostFormat;
+        length?: BlogPostLength;
+        angle?: string;
+        audience?: string;
+    }
+): Promise<{ id: string; title: string; content: string; format: BlogPostFormat }> {
+    const vibeProfile = await getVibeProfile(brandId);
+    const sessionLogs = await fetchSessionLogs(brandId, 10);
+
+    const format: BlogPostFormat = options.format === 'html' ? 'html' : 'markdown';
+    const length: BlogPostLength = options.length ?? 'medium';
+
+    const sessionsText =
+        sessionLogs
+            .map(
+                (l, i) =>
+                    `Session ${i + 1} (${new Date(l.created_at).toLocaleDateString()}): ${l.summary}`
+            )
+            .join('\n\n') || 'No previous sessions for this brand yet.';
+
+    const notesText = options.notes?.trim() || 'Use your judgment based on the topic and brand.';
+    const angle = options.angle?.trim();
+    const audience = options.audience?.trim();
+
+    const prompt = `You are an in-house content lead for this brand. Write a ${length} blog article that the team can paste directly into their blog platform.
+
+Brand Vibe Profile:
+${vibeProfile?.brand_identity ?? 'Not set yet. Infer from the notes and sessions, but keep it modern, calm, and confident.'}
+
+Recent session summaries (newest first):
+${sessionsText}
+
+Session-specific notes to emphasize:
+${notesText}
+
+Topic for this article:
+${options.topic}
+
+Preferred angle (if provided):
+${angle || 'Use your judgment while staying on-brand.'}
+
+Intended audience (if provided):
+${audience || 'Use your judgment; default to founders, marketers, and product leaders.'}
+
+Output format: ${format.toUpperCase()}.
+
+If the format is MARKDOWN:
+- Use proper Markdown headings (##, ###), lists, and emphasis.
+- Do NOT include a leading title line with "#", frontmatter, or code fences.
+- Do NOT wrap the entire post in backticks.
+
+If the format is HTML:
+- Return clean, semantic HTML using <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, and <blockquote>.
+- Do NOT include <html>, <head>, <body>, or inline styles.
+
+In all cases:
+- Write in a clear, premium, on-brand voice.
+- Focus on how this brand uses an AI Marketing Director / studio concept to turn conversations into assets.
+- Respond with the blog body ONLY, in the requested format. No preamble, no explanations, no extra text.`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+            {
+                role: 'user',
+                parts: [{ text: prompt }],
+            },
+        ],
+    });
+
+    const text =
+        response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ??
+        'Draft blog post could not be generated. Please try again.';
+
+    const safeTitle = options.topic.trim() || 'Launch blog post';
+
+    // Ensure a vibe profile document exists for this brand (for consistency with other actions)
+    await upsertVibeProfile({
+        id: brandId,
+        brand_identity: vibeProfile?.brand_identity ?? 'Default',
+    });
+
+    // Persist the generated blog post in Firestore for this brand/session
+    const saved = await insertBlogPost(brandId, {
+        title: safeTitle,
+        content: text,
+        format,
+    });
+
+    const id = saved?.id ?? '';
+
+    return {
+        id,
+        title: safeTitle,
+        content: text,
+        format,
+    };
+}
+
+export async function fetchBlogPostsAction(
+    brandId: string,
+    limit?: number
+): Promise<Array<{ id: string; title: string; content: string; format: BlogPostFormat; created_at: string }>> {
+    const posts = await fetchBlogPosts(brandId, limit);
+    return posts.map((p) => ({
+        id: p.id,
+        title: p.title,
+        content: p.content,
+        format: p.format,
+        created_at: p.created_at,
+    }));
 }
 
 /** Max reference image size (chars) to avoid Server Action serialization limits */

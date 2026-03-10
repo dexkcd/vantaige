@@ -147,6 +147,7 @@ Transition AI from a "chat box" to a proactive partner that understands physical
 - [x] **Short-Form Video**: TikTok/YouTube Shorts (9:16) via [Veo 3.1](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/veo/3-1-generate), with a **daily limit of 5 videos or 30 seconds total per brand (UTC day)** to control generation costs
 - [x] Launch Pack Sidebar: Pinned assets & copy for review
 - [x] Strategic Grounding: Google Search integration for trends
+- [x] **Blog Post Generation**: Long-form blog articles (Markdown or HTML) generated from live sessions and the Vibe Profile, auto-pinned in the Launch Pack Review tab so they can be copy-pasted into Medium, Ghost, Substack, or custom blogs.
 
 ### 5. 🔄 The "Refine" Loop (Agentic Workflow)
 - [x] Kanban Bridge: Turning ideas into "Draft Plans"

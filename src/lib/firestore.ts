@@ -144,6 +144,15 @@ export interface PinnedForReview {
     created_at: string;
 }
 
+export interface BlogPost {
+    id: string;
+    brand_id: string;
+    title: string;
+    content: string;
+    format: 'markdown' | 'html';
+    created_at: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -792,6 +801,70 @@ export async function fetchPinnedForReview(brandId: string): Promise<PinnedForRe
         });
     } catch (error) {
         logFirestoreError('fetching pinned items', error);
+        return [];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Blog Posts
+// ---------------------------------------------------------------------------
+
+export async function insertBlogPost(
+    brandId: string,
+    data: {
+        title: string;
+        content: string;
+        format: 'markdown' | 'html';
+    }
+): Promise<BlogPost | null> {
+    try {
+        const ref = await db.collection('blog_posts').add({
+            brand_id: brandId,
+            title: data.title ?? '',
+            content: data.content ?? '',
+            format: data.format ?? 'markdown',
+            created_at: FieldValue.serverTimestamp(),
+        });
+        const doc = await ref.get();
+        const d = doc.data()!;
+        return {
+            id: doc.id,
+            brand_id: d.brand_id,
+            title: d.title ?? '',
+            content: d.content ?? '',
+            format: (d.format as 'markdown' | 'html') ?? 'markdown',
+            created_at: toIsoString(d.created_at as Timestamp) ?? '',
+        };
+    } catch (error) {
+        logFirestoreError('creating blog post', error);
+        return null;
+    }
+}
+
+export async function fetchBlogPosts(
+    brandId: string,
+    limit: number = 20
+): Promise<BlogPost[]> {
+    try {
+        const snap = await db
+            .collection('blog_posts')
+            .where('brand_id', '==', brandId)
+            .orderBy('created_at', 'desc')
+            .limit(limit)
+            .get();
+        return snap.docs.map((doc) => {
+            const d = doc.data();
+            return {
+                id: doc.id,
+                brand_id: d.brand_id,
+                title: d.title ?? '',
+                content: d.content ?? '',
+                format: (d.format as 'markdown' | 'html') ?? 'markdown',
+                created_at: toIsoString(d.created_at as Timestamp) ?? '',
+            };
+        });
+    } catch (error) {
+        logFirestoreError('fetching blog posts', error);
         return [];
     }
 }
