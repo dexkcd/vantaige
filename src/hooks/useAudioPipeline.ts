@@ -36,6 +36,13 @@ export function useAudioPipeline(
     const playbackAccumulatorSamplesRef = useRef(0);
     const TARGET_SAMPLES = 2880; // 120ms at 24kHz
 
+    // Track all in-flight BufferSourceNodes so bargeIn() can stop them immediately
+    const activeSourcesRef = useRef<AudioBufferSourceNode[]>([]);
+    // Monotonically-increasing generation counter — incremented on every bargeIn() call.
+    // Each scheduled source captures the generation at schedule time; its onended callback
+    // ignores the chain if the generation has moved on (i.e. a bargeIn fired meanwhile).
+    const playbackGenRef = useRef(0);
+
     // ─── Playback ────────────────────────────────────────────────────────────
     const scheduleAudioPlayback = useCallback(() => {
         const ctx = playbackCtxRef.current;
@@ -44,12 +51,19 @@ export function useAudioPipeline(
             isPlayingRef.current = false;
             return;
         }
+
+        // Mark playing BEFORE the suspended early-return so that concurrent
+        // queuePlayback calls don't race and schedule duplicate chains.
+        isPlayingRef.current = true;
+
         if (ctx.state === 'suspended') {
             ctx.resume().then(() => scheduleAudioPlayback());
             return;
         }
 
-        isPlayingRef.current = true;
+        // Capture the current playback generation so the onended callback can
+        // detect a bargeIn() that occurred while this source was in-flight.
+        const myGen = playbackGenRef.current;
 
         const pcmData = playbackQueueRef.current.shift()!;
 
@@ -72,6 +86,9 @@ export function useAudioPipeline(
         source.start(playTime);
         nextPlayTimeRef.current = playTime + buffer.duration;
 
+        // Register for cancellation by bargeIn()
+        activeSourcesRef.current.push(source);
+
         if (playLogCountRef.current === 0) {
             console.log('[AudioPipeline] Playback started, queue length:', playbackQueueRef.current.length);
         }
@@ -80,7 +97,14 @@ export function useAudioPipeline(
             fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:scheduleAudioPlayback',message:'source.start() called',data:{ctxState:ctx.state,duration:buffer.duration,queueRemaining:playbackQueueRef.current.length},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
         }
 
-        source.onended = () => scheduleAudioPlayback();
+        source.onended = () => {
+            // Evict from the active-sources registry (may already be gone if bargeIn fired)
+            activeSourcesRef.current = activeSourcesRef.current.filter(s => s !== source);
+            // If bargeIn() incremented the generation while this source was playing,
+            // discard the chain — the new response will create its own chain.
+            if (playbackGenRef.current !== myGen) return;
+            scheduleAudioPlayback();
+        };
     }, []);
 
     // Call from a user gesture (e.g. Connect click) so playback can run without being suspended.
@@ -199,13 +223,26 @@ export function useAudioPipeline(
     }, [flushAccumulator, scheduleAudioPlayback]);
 
     const bargeIn = useCallback(() => {
+        // Advance the generation so all stale onended callbacks are silently dropped.
+        playbackGenRef.current += 1;
+
+        // Immediately stop every in-flight BufferSourceNode.
+        // Calling stop() on a source that was scheduled but hasn't started yet also
+        // prevents it from ever playing and fires its onended event (which we ignore
+        // because the generation has advanced).
+        const sourcesToStop = activeSourcesRef.current;
+        activeSourcesRef.current = [];
+        for (const src of sourcesToStop) {
+            try { src.stop(); } catch { /* already ended or not yet started — safe to ignore */ }
+        }
+
         const cleared = playbackQueueRef.current.length;
         playbackQueueRef.current = [];
         playbackAccumulatorRef.current = [];
         playbackAccumulatorSamplesRef.current = 0;
         isPlayingRef.current = false;
-        nextPlayTimeRef.current = playbackCtxRef.current?.currentTime || 0;
-        if (process.env.NODE_ENV === 'development') fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:bargeIn',message:'bargeIn cleared queue',data:{cleared},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+        nextPlayTimeRef.current = playbackCtxRef.current?.currentTime ?? 0;
+        if (process.env.NODE_ENV === 'development') fetch('http://127.0.0.1:7337/ingest/7000f127-91ad-4ea2-ab32-21d686745005',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eed6f8'},body:JSON.stringify({sessionId:'eed6f8',location:'useAudioPipeline.ts:bargeIn',message:'bargeIn cleared queue',data:{cleared,sourcesKilled:sourcesToStop.length},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
     }, []);
 
     // ─── Recording ───────────────────────────────────────────────────────────
@@ -298,14 +335,26 @@ export function useAudioPipeline(
         // Leave the playback context alive until the component unmounts
     }, []);
 
+    /** Stop all in-flight playback without incrementing generation (used on full teardown). */
+    const stopAllPlayback = useCallback(() => {
+        const srcs = activeSourcesRef.current;
+        activeSourcesRef.current = [];
+        for (const src of srcs) { try { src.stop(); } catch { /* ignored */ } }
+        playbackQueueRef.current = [];
+        playbackAccumulatorRef.current = [];
+        playbackAccumulatorSamplesRef.current = 0;
+        isPlayingRef.current = false;
+    }, []);
+
     useEffect(() => {
         return () => {
             stopRecording();
+            stopAllPlayback();
             playbackCtxRef.current?.close().catch(console.error);
             playbackCtxRef.current = null;
             playbackGainRef.current = null;
         };
-    }, [stopRecording]);
+    }, [stopRecording, stopAllPlayback]);
 
     return { isRecording, startRecording, stopRecording, queuePlayback, bargeIn, preparePlayback, flushPlayback };
 }

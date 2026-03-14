@@ -327,9 +327,20 @@ export default function Dashboard() {
           },
         },
       },
-      // Minimal realtime config: VAD only (activityHandling/turnCoverage can trigger 1008 on this model)
+      // VAD tuning: high start sensitivity catches barge-in interruptions immediately;
+      // high end sensitivity keeps turn endings snappy.
+      // prefixPaddingMs includes enough audio context so the first syllable is never clipped.
+      // silenceDurationMs gives a natural pause before ending the user's turn.
+      // activityHandling/turnCoverage are intentionally omitted — they trigger error 1008
+      // on gemini-live-2.5-flash-native-audio.
       realtimeInputConfig: {
-        automaticActivityDetection: { disabled: false },
+        automaticActivityDetection: {
+          disabled: false,
+          startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+          endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
+          prefixPaddingMs: 200,
+          silenceDurationMs: 800,
+        },
       },
       systemInstruction: {
         parts: [
