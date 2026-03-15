@@ -24,8 +24,15 @@ def setup_to_live_config(setup: dict) -> LiveConnectConfig:
     # RealtimeInputConfig with AutomaticActivityDetection (like the notebook)
     ric = setup.get("realtimeInputConfig") or {}
     aad = ric.get("automaticActivityDetection")
-    start_sens = StartSensitivity.START_SENSITIVITY_LOW
-    end_sens = EndSensitivity.END_SENSITIVITY_LOW
+
+    # Default to HIGH start sensitivity so barge-in interruptions are caught immediately.
+    # HIGH end sensitivity keeps turn endings snappy so Gemini replies without noticeable lag.
+    # prefixPaddingMs=200 includes enough audio context before speech onset so the beginning
+    # of each utterance is never clipped.
+    # silenceDurationMs=800 gives a natural 800 ms pause before the user's turn is considered
+    # complete — short enough to feel responsive, long enough to avoid mid-sentence cut-offs.
+    start_sens = StartSensitivity.START_SENSITIVITY_HIGH
+    end_sens = EndSensitivity.END_SENSITIVITY_HIGH
     if aad:
         ss = aad.get("startOfSpeechSensitivity")
         if ss and hasattr(StartSensitivity, ss):
@@ -37,8 +44,8 @@ def setup_to_live_config(setup: dict) -> LiveConnectConfig:
         disabled=aad.get("disabled", False) if aad else False,
         startOfSpeechSensitivity=start_sens,
         endOfSpeechSensitivity=end_sens,
-        prefixPaddingMs=aad.get("prefixPaddingMs", 20) if aad else 20,
-        silenceDurationMs=aad.get("silenceDurationMs", 100) if aad else 100,
+        prefixPaddingMs=aad.get("prefixPaddingMs", 200) if aad else 200,
+        silenceDurationMs=aad.get("silenceDurationMs", 800) if aad else 800,
     )
     realtime_input_config = RealtimeInputConfig(
         automaticActivityDetection=automatic_activity_detection,

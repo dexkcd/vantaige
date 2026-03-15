@@ -171,6 +171,14 @@ async def consumer(session, ws: WebSocket):
                 out = _server_content_to_client(msg)
                 if out:
                     sc = out.get("serverContent", {})
+                    if sc.get("interrupted"):
+                        # Log barge-in events clearly so they're easy to trace in logs
+                        logger.info(
+                            "Consumer: ⚡ interrupted by user after %s audio parts — forwarding bargeIn signal",
+                            model_turn_parts_this_turn,
+                        )
+                        # Reset part counter; the next chunks belong to a fresh model turn
+                        model_turn_parts_this_turn = 0
                     if sc.get("modelTurn", {}).get("parts"):
                         model_turn_parts_this_turn += len(sc["modelTurn"]["parts"])
                         if model_turn_parts_this_turn <= 3 or model_turn_parts_this_turn % 100 == 0:
@@ -312,11 +320,13 @@ async def websocket_endpoint(ws: WebSocket):
             await ws.send_json({"setupComplete": True})
             consumer_task = asyncio.create_task(consumer(session, ws))
             producer_task = asyncio.create_task(producer(session, ws))
-            done, _ = await asyncio.wait(
+            # Return as soon as either task finishes, then cancel the other so we don't
+            # leak a coroutine waiting forever on session.receive() or ws.receive_text().
+            done, pending = await asyncio.wait(
                 [consumer_task, producer_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            for t in done:
+            for t in pending:
                 t.cancel()
             await asyncio.gather(consumer_task, producer_task, return_exceptions=True)
     except ValueError as e:
